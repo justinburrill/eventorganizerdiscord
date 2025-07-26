@@ -1,3 +1,4 @@
+import time
 from collections import OrderedDict
 
 PREFIX = "!"
@@ -26,17 +27,21 @@ def check_player_count() -> bool:
 def get_current_available() -> list[tuple[Member, TimeRange]]:
     return [(m, tr) for (m, tr) in available_players.items() if tr.time_in_range(get_now())]
 
+
 def count_current_available() -> int:
     return len(get_current_available())
+
 
 def get_mention_available_players() -> [str]:
     return [player.mention for player in available_players]
 
 
-async def inform_available_players_of_start():
+async def inform_available_players_of_start(t: datetime):
     """
     Contact everyone who says they'll play
     """
+    while get_now() < t:
+        time.sleep(30)
     await CHANNEL.send(f"{" ".join(get_mention_available_players())} time to play!")
 
 
@@ -60,7 +65,9 @@ async def handle_available(message: Message, args: str):
     else:
         await message.add_reaction("👍")
         if check_player_count():
-            await inform_available_players_of_start()
+            t = TimeRange.get_common_start_time(available_players.values())
+            await inform_available_players_of_agreed_time(t)
+            await inform_available_players_of_start(t)
 
 
 async def handle_unavailable(message: Message, args: str):
