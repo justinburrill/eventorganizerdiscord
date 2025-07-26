@@ -315,6 +315,10 @@ class TimeRange:
         self.start_time_available: datetime = dt
         self.duration_available: timedelta = td
 
+    def __str__(self) -> str:
+        fmt = lambda t: t.strftime("%m/%d %H:%M")
+        return f"available from {fmt(self.start_time_available)} to {fmt(self.get_end_time_available())}"
+
     def time_in_range(self, t: datetime):
         return self.start_time_available <= t <= self.get_end_time_available()
 

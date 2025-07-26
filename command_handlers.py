@@ -114,7 +114,12 @@ async def handle_count(message: Message, args: str):
 
 
 async def handle_status(message: Message, args: str):
-    await message.reply(f"{count_current_available()} players currently available")
+    s = f"{count_current_available()} players currently available"
+    global available_players
+
+    for m, tr in available_players:
+        s += f"\n{m.name()}: {str(tr)}"
+    await message.reply(s)
 
 
 func_map: OrderedDict = OrderedDict({
