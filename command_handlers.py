@@ -8,8 +8,6 @@ import discord
 from discord import Member, Message
 from utils import get_now
 
-()
-
 # name : times
 available_players: dict[Member, TimeRange] = {}
 
@@ -53,7 +51,7 @@ async def inform_available_players_of_agreed_time(t: datetime):
     Contact everyone who says they'll play
     """
     if CHANNEL is None: return
-    await CHANNEL.send(f"{" ".join(get_mention_available_players())} start time has been set to {str(t)}")
+    await CHANNEL.send(f"{" ".join(get_mention_available_players())} start time has been set to {fmt_time(t)}")
 
 
 async def handle_available(message: Message, args: str):
@@ -116,9 +114,8 @@ async def handle_count(message: Message, args: str):
 async def handle_status(message: Message, args: str):
     s = f"{count_current_available()} players currently available"
     global available_players
-
-    for m, tr in available_players:
-        s += f"\n{m.name()}: {str(tr)}"
+    for m, tr in available_players.items():
+        s += f"\n{m.name}: {str(tr)}"
     await message.reply(s)
 
 

@@ -10,6 +10,9 @@ class TimeSyntaxError(RuntimeError):
         super().__init__()
 
 
+def fmt_time(dt: datetime) -> str:
+    return dt.strftime("%m/%d %H:%M")
+
 
 def reverse_lookup(value, d: dict):
     for k, v in d.items():
