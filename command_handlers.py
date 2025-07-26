@@ -40,19 +40,25 @@ async def inform_available_players_of_start(t: datetime):
     """
     Contact everyone who says they'll play
     """
+    if CHANNEL is None: return
     while get_now() < t:
         time.sleep(30)
     await CHANNEL.send(f"{" ".join(get_mention_available_players())} time to play!")
+    global available_players
+    available_players.clear()
 
 
 async def inform_available_players_of_agreed_time(t: datetime):
     """
     Contact everyone who says they'll play
     """
+    if CHANNEL is None: return
     await CHANNEL.send(f"{" ".join(get_mention_available_players())} start time has been set to {str(t)}")
 
 
 async def handle_available(message: Message, args: str):
+    if CHANNEL is None:
+        await handle_setup(message, "")
     try:
         available_players[message.author] = TimeRange(args)
     except ValueError as e:
@@ -81,7 +87,7 @@ async def handle_unavailable(message: Message, args: str):
 async def handle_setup(message: Message, args: str):
     global CHANNEL
     CHANNEL = message.channel
-    await CHANNEL.send(f"the channel {CHANNEL.name} ({CHANNEL.id}) is now where I will be sending messages")
+    await CHANNEL.send(f"the channel '{CHANNEL.name}' ({CHANNEL.id}) is now where I will be sending messages")
 
 
 async def enable_debug(message: Message, args: str):
@@ -97,10 +103,12 @@ async def disable_debug(message: Message, args: str):
 
 
 async def handle_count(message: Message, args: str):
+    global PLAYERS_NEEDED
+    if len(args.strip()) == 0:
+        return await message.reply(f"We need {PLAYERS_NEEDED} players")
     if not args.isnumeric():
         await message.reply(f"Can't make a number out of '{args}'")
     else:
-        global PLAYERS_NEEDED
         PLAYERS_NEEDED = int(args)
         await message.reply(f"Players needed is now '{args}'")
 
