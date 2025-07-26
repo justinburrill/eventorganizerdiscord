@@ -1,3 +1,4 @@
+#!/bin/env python3
 import discord
 from command_handlers import func_map, PREFIX
 import json
