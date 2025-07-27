@@ -1,0 +1,2 @@
+- save all available player interactions to json
+- separate global variables so that the bot can work on more than one server at a time

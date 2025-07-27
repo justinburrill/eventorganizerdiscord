@@ -24,7 +24,7 @@ async def parse_command(message):
         if (count := is_match.count(True)) == 1:  # found command!
             f = func_map.get(matched_commands[0])
         elif count > 1:
-            return await message.channel.send(f"Ambiguous command: '{command}' ({", ".join(matched_commands)})")
+            return await message.channel.send(f"Ambiguous command: \"{command}\" ({", ".join(matched_commands)})")
         else:
             return await message.channel.send(f"huh? what does that mean?")
 

@@ -74,7 +74,7 @@ def parse_simple_timedelta_string(string: str) -> timedelta | None:
 
 @set_tz
 @round_time
-def parse_time_range_string(string: str, now=get_now()) -> (datetime, timedelta):
+def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, timedelta):
     """
     examples:
     5min (available in 5 min for default duration)
@@ -102,6 +102,8 @@ def parse_time_range_string(string: str, now=get_now()) -> (datetime, timedelta)
             fst_date += timedelta(days=1)  # if given a 3am, they probably mean the next day
         if snd_time < time(hour=6):
             snd_date += timedelta(days=1)
+        if snd_date < fst_date and snd_time.hour <= 12:
+            snd_date += timedelta(hours=12)
         dur = snd_date - fst_date
         return fst_date, dur
     # attempt to dissect string
@@ -124,11 +126,15 @@ def parse_time_range_string(string: str, now=get_now()) -> (datetime, timedelta)
                 word = word + " " + words[i + 1]
                 skip = True
         bad_word_seq_err = f"can't understand '{last_word}' followed by '{word}'"
+        duplicate_info_err = f"got two of the same piece of information"
         # is indicator?
         if word in (w for l in indicators.values() for w in l):
             if last_ind_type is not None:  # two indicators in a row
                 raise TimeSyntaxError(bad_word_seq_err)
             ind_type = reverse_lookup(word, indicators)
+            # previously the time was given without an indicator, it's probably the start time
+            if last_time is not None:
+                start_time = last_time
             last_ind_type = ind_type
             last_word = word
             continue  # next word
@@ -138,8 +144,12 @@ def parse_time_range_string(string: str, now=get_now()) -> (datetime, timedelta)
             if t is not None:
                 match last_ind_type:
                     case TimeIndicatorType.StartTime:
+                        if start_time is not None:
+                            raise TimeSyntaxError(duplicate_info_err)
                         start_time = t
                     case TimeIndicatorType.EndTime:
+                        if end_time is not None:
+                            raise TimeSyntaxError(duplicate_info_err)
                         end_time = t
                     case TimeIndicatorType.Delay | TimeIndicatorType.Duration:
                         raise TimeSyntaxError(bad_word_seq_err)
@@ -156,8 +166,12 @@ def parse_time_range_string(string: str, now=get_now()) -> (datetime, timedelta)
             if d is not None:
                 match last_ind_type:
                     case TimeIndicatorType.Duration:
+                        if duration is not None:
+                            raise TimeSyntaxError(duplicate_info_err)
                         duration = d
                     case TimeIndicatorType.Delay:
+                        if delay is not None:
+                            raise TimeSyntaxError(duplicate_info_err)
                         delay = d
                     case TimeIndicatorType.EndTime | TimeIndicatorType.StartTime:
                         raise TimeSyntaxError(bad_word_seq_err)
@@ -177,7 +191,7 @@ def parse_time_range_string(string: str, now=get_now()) -> (datetime, timedelta)
 
 
 def parse_time_range_results(start_time: datetime | None, end_time: datetime | None, duration: timedelta | None,
-                             delay: timedelta | None, now=get_now()) -> (datetime, timedelta):
+                             delay: timedelta | None, now=get_now_rounded()) -> (datetime, timedelta):
     match [start_time, end_time, duration, delay]:
         case [None, None, None, None]:
             raise TimeSyntaxError("i got literally nothing from that")
@@ -301,7 +315,7 @@ def parse_time_range_results(start_time: datetime | None, end_time: datetime | N
 class TimeRange:
     DEFAULT_DURATION = timedelta(hours=3)
 
-    def __init__(self, string: str, now=get_now()):
+    def __init__(self, string: str, now=get_now_rounded()):
         if len(string.strip()) == 0:
             self.start_time_available = now
             self.duration_available = TimeRange.DEFAULT_DURATION
@@ -316,7 +330,7 @@ class TimeRange:
         self.duration_available: timedelta = td
 
     def __str__(self) -> str:
-        return f"available from {fmt_time(self.start_time_available)} to {fmt_time(self.get_end_time_available())}"
+        return f"available from {fmt_dt(self.start_time_available)} to {fmt_dt(self.get_end_time_available())}"
 
     def time_in_range(self, t: datetime):
         return self.start_time_available <= t <= self.get_end_time_available()
@@ -331,17 +345,17 @@ class TimeRange:
     @staticmethod
     @set_tz
     @round_time
-    def get_common_start_time(ranges: ["TimeRange"]) -> datetime | None:
+    def get_common_start_time(ranges: list["TimeRange"]) -> datetime | None:
         """
         :param ranges: A list of TimeRanges to compare
         :return: A datetime object representing the start of when everyone is available, or None if there is no total overlap
         """
         if len(ranges) == 0:
             return None
-        ranges_by_start_time = sorted(ranges, key=cmp_to_key(TimeRange.cmp_by_start_time))
+        ranges_by_start_time = list(reversed(sorted(ranges, key=cmp_to_key(TimeRange.cmp_by_start_time))))
         last_start_time = ranges_by_start_time[-1].start_time_available
         for r in ranges_by_start_time:
             if r.get_end_time_available() < last_start_time:
                 return None
         else:
-            return last_start_time
+            return last_start_time #TODO: fix

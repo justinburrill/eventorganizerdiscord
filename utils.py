@@ -10,7 +10,7 @@ class TimeSyntaxError(RuntimeError):
         super().__init__()
 
 
-def fmt_time(dt: datetime) -> str:
+def fmt_dt(dt: datetime) -> str:
     return dt.strftime("%m/%d %H:%M")
 
 
@@ -97,5 +97,9 @@ def time_tomorrow(t: time) -> datetime:
 
 @set_tz
 @round_time
+def get_now_rounded() -> datetime:
+    return datetime.now()
+
+@set_tz
 def get_now() -> datetime:
     return datetime.now()

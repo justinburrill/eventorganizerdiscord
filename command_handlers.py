@@ -1,12 +1,14 @@
-import time
+import asyncio
 from collections import OrderedDict
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-PREFIX = "!"
-from times import *
-
+from times import TimeRange, fmt_dt, TimeSyntaxError
 import discord
 from discord import Member, Message
-from utils import get_now
+from utils import get_now_rounded, get_now
+
+PREFIX = "!"
 
 # name : times
 available_players: dict[Member, TimeRange] = {}
@@ -17,20 +19,57 @@ CHANNEL: discord.TextChannel | None = None
 
 DEBUG_MODE = False
 
-
-def check_player_count() -> bool:
-    return len(available_players) >= PLAYERS_NEEDED
+CONFIRMED_START_TIME: datetime | None = None
 
 
-def get_current_available() -> list[tuple[Member, TimeRange]]:
-    return [(m, tr) for (m, tr) in available_players.items() if tr.time_in_range(get_now())]
+async def prune_available_players() -> None:
+    global available_players
+    now = get_now_rounded()
+    to_delete = []
+    for (m, tr) in available_players.items():
+        if tr.start_time_available < now:
+            if DEBUG_MODE:
+                await CHANNEL.send(f"pruning player {m.name} (end time {fmt_dt(tr.get_end_time_available())})")
+            to_delete.append(m)
+    for m in to_delete:
+        del available_players[m]
 
 
-def count_current_available() -> int:
-    return len(get_current_available())
+async def check_player_count():
+    """
+    Check if we have enough players, and handle it as needed
+    :return: None
+    """
+    await prune_available_players()
+    if CHANNEL is None:
+        return
+
+    if (count := len(available_players)) >= PLAYERS_NEEDED:
+        if DEBUG_MODE:
+            await CHANNEL.send("We have enough players, checking for common start time...")
+        t = TimeRange.get_common_start_time(list(available_players.values()))
+        if t is not None:
+            await inform_available_players_of_agreed_time(t)
+            await inform_available_players_of_start(t)
+        else:
+            await CHANNEL.send("Players don't have a common start time...")
+    elif DEBUG_MODE:
+        await CHANNEL.send(f"Not enough players. (need {PLAYERS_NEEDED}, have {count})")
 
 
-def get_mention_available_players() -> [str]:
+async def get_current_available() -> list[tuple[Member, TimeRange]]:
+    global available_players
+    await prune_available_players()
+    return [(m, tr) for (m, tr) in available_players.items() if tr.time_in_range(get_now_rounded())]
+
+
+async def count_current_available() -> int:
+    return len(await get_current_available())
+
+
+async def get_mention_available_players() -> [str]:
+    global available_players
+    await prune_available_players()
     return [player.mention for player in available_players]
 
 
@@ -39,11 +78,16 @@ async def inform_available_players_of_start(t: datetime):
     Contact everyone who says they'll play
     """
     if CHANNEL is None: return
-    while get_now() < t:
-        time.sleep(30)
-    await CHANNEL.send(f"{" ".join(get_mention_available_players())} time to play!")
+    global CONFIRMED_START_TIME
+    CONFIRMED_START_TIME = t
+    delay = (t - get_now()).total_seconds()
+    if DEBUG_MODE:
+        await CHANNEL.send(f"Waiting until {t} ({delay:.2f} seconds, current time is {get_now()})")
+    if delay > 0: await asyncio.sleep(delay)
+    await CHANNEL.send(f"{" ".join(await get_mention_available_players())} time to play!")
     global available_players
     available_players.clear()
+    CONFIRMED_START_TIME = None
 
 
 async def inform_available_players_of_agreed_time(t: datetime):
@@ -51,10 +95,11 @@ async def inform_available_players_of_agreed_time(t: datetime):
     Contact everyone who says they'll play
     """
     if CHANNEL is None: return
-    await CHANNEL.send(f"{" ".join(get_mention_available_players())} start time has been set to {fmt_time(t)}")
+    await CHANNEL.send(f"{" ".join(await get_mention_available_players())} start time has been set to {fmt_dt(t)}")
 
 
 async def handle_available(message: Message, args: str):
+    global available_players
     if CHANNEL is None:
         await handle_setup(message, "")
     try:
@@ -68,51 +113,65 @@ async def handle_available(message: Message, args: str):
         await message.reply(e.message)
     else:
         await message.add_reaction("👍")
-        if check_player_count():
-            t = TimeRange.get_common_start_time(available_players.values())
-            await inform_available_players_of_agreed_time(t)
-            await inform_available_players_of_start(t)
+        await check_player_count()
 
 
-async def handle_unavailable(message: Message, args: str):
+async def handle_unavailable(message: Message, _args: str):
+    if CHANNEL is None:
+        await handle_setup(message, "")
+    global available_players
+    await prune_available_players()
     if message.author not in available_players.keys():
         return await message.reply(f"We weren't expecting you!")
     # delete em!
     del available_players[message.author]
     await message.add_reaction("🖕")
+    # TODO: cancel confirmed time
 
 
-async def handle_setup(message: Message, args: str):
+async def handle_setup(message: Message, _args: str):
     global CHANNEL
     CHANNEL = message.channel
-    await CHANNEL.send(f"the channel '{CHANNEL.name}' ({CHANNEL.id}) is now where I will be sending messages")
+    await CHANNEL.send(f"the channel \"{CHANNEL.name}\" ({CHANNEL.id}) is now where I will be sending messages")
 
 
-async def enable_debug(message: Message, args: str):
+async def enable_debug(message: Message, _args: str):
+    if CHANNEL is None:
+        await handle_setup(message, "")
     global DEBUG_MODE
     DEBUG_MODE = True
     await message.channel.send("debug mode on")
 
 
-async def disable_debug(message: Message, args: str):
+async def disable_debug(message: Message, _args: str):
+    if CHANNEL is None:
+        await handle_setup(message, "")
     global DEBUG_MODE
     DEBUG_MODE = False
     await message.channel.send("debug mode off")
 
 
 async def handle_count(message: Message, args: str):
+    if CHANNEL is None:
+        await handle_setup(message, "")
     global PLAYERS_NEEDED
     if len(args.strip()) == 0:
         return await message.reply(f"We need {PLAYERS_NEEDED} players")
     if not args.isnumeric():
-        await message.reply(f"Can't make a number out of '{args}'")
+        await message.reply(f"Can't make a number out of \"{args}\"")
     else:
         PLAYERS_NEEDED = int(args)
-        await message.reply(f"Players needed is now '{args}'")
+        await message.reply(f"Players needed is now \"{args}\"")
+        await check_player_count()
 
 
-async def handle_status(message: Message, args: str):
-    s = f"{count_current_available()} players currently available"
+async def handle_status(message: Message, _args: str):
+    if CHANNEL is None:
+        await handle_setup(message, "")
+    await prune_available_players()
+    s = f"({await count_current_available()}/{PLAYERS_NEEDED}) players currently available"
+    if CONFIRMED_START_TIME is not None: s += f"\nStart time confirmed for: {fmt_dt(CONFIRMED_START_TIME)}"
+    if DEBUG_MODE: s += f"\nDEBUG MODE ON\nCURRENT TIME {fmt_dt(get_now_rounded())}"
     global available_players
     for m, tr in available_players.items():
         s += f"\n{m.name}: {str(tr)}"

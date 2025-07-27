@@ -4,6 +4,15 @@ from times import TimeRange, parse_time_string, parse_simple_timedelta_string
 from datetime import timedelta, datetime, time
 from utils import *
 
+class CommonTimeTests(TestCase):
+    def test_common_start_time(self):
+        now = get_now_rounded()
+        trange1 = TimeRange("in 10 minutes for 10 minutes", now=now)
+        trange2 = TimeRange("for 1 hour", now=now)
+        self.assertEqual(now + timedelta(minutes=10), TimeRange.get_common_start_time([trange1, trange2]))
+        self.assertEqual(now, TimeRange.get_common_start_time([trange2]))
+        trange3 = TimeRange("in 1 hour for 5 minutes", now=now)
+        self.assertEqual(None, TimeRange.get_common_start_time([trange1, trange2, trange3]))
 
 class TimeParsingTests(TestCase):
     def test_add_time_and_delta(self):
@@ -58,7 +67,8 @@ class TimeRangeParsingTests(TestCase):
         self.assertEqual(time_tomorrow(time(hour=5)), trange.get_end_time_available())
 
     def test_fail_easy_range(self):
-        self.assertRaises(ValueError, TimeRange, "9-6")  # backwards time range
+        now=time_today(time(hour=12))
+        self.assertRaises(ValueError, TimeRange, "9-6", now=now)  # backwards time range
 
     def test_start_time(self):
         now: datetime = time_today(time(hour=12))
@@ -73,12 +83,15 @@ class TimeRangeParsingTests(TestCase):
         self.assertEqual(now + timedelta(minutes=20), trange.start_time_available)
         trange = TimeRange("at 2pm", now=now)
         self.assertEqual(time_today(time(hour=14)), trange.start_time_available)
+        trange = TimeRange("in 1", now=now+timedelta(seconds = 30))
+        self.assertEqual(now + timedelta(minutes=1), trange.start_time_available)
 
     def test_end_time(self):
         now = time_today(time(hour=12))
         trange = TimeRange("until 10", now=now)
         self.assertEqual(now, trange.start_time_available)
         self.assertEqual(time_today(time(hour=22)), trange.get_end_time_available())
+        self.assertTrue(trange.time_in_range(time_today(time(hour=14))))
         trange = TimeRange("until 7pm", now=now)
         self.assertEqual(now, trange.start_time_available)
         self.assertEqual(time_today(time(hour=19)), trange.get_end_time_available())
@@ -87,7 +100,7 @@ class TimeRangeParsingTests(TestCase):
         self.assertEqual(time_today(time(hour=13)), trange.get_end_time_available())
 
     def test_duration(self):
-        now = get_now()
+        now = get_now_rounded()
         trange = TimeRange("for 45min")
         self.assertEqual(now, trange.start_time_available)
         self.assertEqual(now + timedelta(minutes=45), trange.get_end_time_available())
@@ -118,9 +131,20 @@ class TimeRangeParsingTests(TestCase):
         trange = TimeRange("from 7 pm to 9 pm", now=now)
         self.assertEqual(time_today(time(hour=19)), trange.start_time_available)
         self.assertEqual(time_today(time(hour=21)), trange.get_end_time_available())
+        trange = TimeRange("7 pm to 9 pm", now=now)
+        self.assertEqual(time_today(time(hour=19)), trange.start_time_available)
+        self.assertEqual(time_today(time(hour=21)), trange.get_end_time_available())
+        trange = TimeRange("from 7:30 to 9:30", now=now)
+        self.assertEqual(time_today(time(hour=19, minute=30)), trange.start_time_available)
+        self.assertEqual(time_today(time(hour=21, minute=30)), trange.get_end_time_available())
 
     def test_fail_compound(self):
         now = time_today(time(hour=12))
-        trange = TimeRange("", now=now)
-        self.assertEqual(now + timedelta(minutes=5), trange.start_time_available)
-        self.assertEqual(timedelta(hours=1), trange.duration_available)
+        self.assertRaises(TimeSyntaxError, TimeRange, "at 5 at 6", now=now)
+        self.assertRaises(TimeSyntaxError, TimeRange, "at 7:30:30", now=now)
+        self.assertRaises(TimeSyntaxError, TimeRange, "12 to at 12", now=now)
+        self.assertRaises(TimeSyntaxError, TimeRange, "from until 7pm", now=now)
+        self.assertRaises(TimeSyntaxError, TimeRange, "in 5 minutes in 5 minutes", now=now)
+        self.assertRaises(TimeSyntaxError, TimeRange, "hello", now=now)
+        self.assertRaises(TimeSyntaxError, TimeRange, "for 5 minutes hello", now=now)
+        self.assertRaises(TimeSyntaxError, TimeRange, "for 5pm minutes", now=now)
