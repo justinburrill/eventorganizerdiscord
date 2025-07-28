@@ -27,7 +27,7 @@ async def prune_available_players() -> None:
     now = get_now_rounded()
     to_delete = []
     for (m, tr) in available_players.items():
-        if tr.start_time_available < now:
+        if tr.get_end_time_available() < now:
             if DEBUG_MODE:
                 await CHANNEL.send(f"pruning player {m.name} (end time {fmt_dt(tr.get_end_time_available())})")
             to_delete.append(m)
