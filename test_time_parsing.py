@@ -1,8 +1,8 @@
-import zoneinfo
 from unittest import TestCase
 from times import TimeRange, parse_time_string, parse_simple_timedelta_string
 from datetime import timedelta, datetime, time
-from utils import *
+from utils import get_now_rounded, time_tomorrow, time_today, add_time_and_delta, strip_seconds, TimeSyntaxError, TZ
+
 
 class CommonTimeTests(TestCase):
     def test_common_start_time(self):
@@ -24,6 +24,7 @@ class CommonTimeTests(TestCase):
         common = TimeRange.get_common_start_time([trange1, trange2, trange3, trange4, trange5])
         self.assertEqual(time_today(time(hour=17)), common)
 
+
 class TimeParsingTests(TestCase):
     def test_add_time_and_delta(self):
         self.assertEqual(time(hour=12, minute=30), add_time_and_delta(time(hour=12), timedelta(minutes=30)))
@@ -32,11 +33,11 @@ class TimeParsingTests(TestCase):
     def test_today(self):
         self.assertEqual(strip_seconds(datetime
                                        .today()
-                                       .replace(tzinfo=zoneinfo.ZoneInfo(key="America/Toronto"), hour=10, minute=0)),
+                                       .replace(tzinfo=TZ, hour=10, minute=0)),
                          time_today(time(hour=10)))
         self.assertEqual(strip_seconds(datetime
                                        .today()
-                                       .replace(tzinfo=zoneinfo.ZoneInfo(key="America/Toronto"), hour=23, minute=0)),
+                                       .replace(tzinfo=TZ, hour=23, minute=0)),
                          time_today(time(hour=23)))
 
     def test_time(self):
@@ -50,9 +51,9 @@ class TimeParsingTests(TestCase):
 
     def test_timedelta(self):
         for s in ["5", "5min", "5 minutes", "5m", "5minutes"]:
-            self.assertEqual(timedelta(minutes=5), (td := parse_simple_timedelta_string(s)), msg=f"{s=}")
+            self.assertEqual(timedelta(minutes=5), (td := parse_simple_timedelta_string(s)), msg=f"{s=}, {td=}")
         for s in ["5 hours", "5hr", "5hrs", "5 hour", "5h", "5 h"]:
-            self.assertEqual(timedelta(hours=5), (td := parse_simple_timedelta_string(s)), msg=f"{s=}")
+            self.assertEqual(timedelta(hours=5), (td := parse_simple_timedelta_string(s)), msg=f"{s=}, {td=}")
 
 
 class TimeRangeParsingTests(TestCase):
@@ -77,7 +78,7 @@ class TimeRangeParsingTests(TestCase):
         self.assertEqual(time_tomorrow(time(hour=5)), trange.get_end_time_available())
 
     def test_fail_easy_range(self):
-        now=time_today(time(hour=12))
+        now = time_today(time(hour=12))
         self.assertRaises(ValueError, TimeRange, "9-6", now=now)  # backwards time range
 
     def test_start_time(self):
@@ -93,8 +94,8 @@ class TimeRangeParsingTests(TestCase):
         self.assertEqual(now + timedelta(minutes=20), trange.start_time_available)
         trange = TimeRange("at 2pm", now=now)
         self.assertEqual(time_today(time(hour=14)), trange.start_time_available)
-        trange = TimeRange("in 1", now=now+timedelta(seconds = 30))
-        self.assertEqual(now + timedelta(minutes=1), trange.start_time_available)
+        trange = TimeRange("in 5", now=now)
+        self.assertEqual(now + timedelta(minutes=5), trange.start_time_available)
 
     def test_end_time(self):
         now = time_today(time(hour=12))
@@ -111,19 +112,22 @@ class TimeRangeParsingTests(TestCase):
 
     def test_duration(self):
         now = get_now_rounded()
-        trange = TimeRange("for 45min")
+        trange = TimeRange("for 30 min", now=now)
+        self.assertEqual(now, trange.start_time_available)
+        self.assertEqual(now + timedelta(minutes=30), trange.get_end_time_available())
+        trange = TimeRange("for 45min", now=now)
         self.assertEqual(now, trange.start_time_available)
         self.assertEqual(now + timedelta(minutes=45), trange.get_end_time_available())
-        trange = TimeRange("for 5 hours")
+        trange = TimeRange("for 5 hours", now=now)
         self.assertEqual(now, trange.start_time_available)
         self.assertEqual(now + timedelta(hours=5), trange.get_end_time_available())
-        trange = TimeRange("for 2hrs")
+        trange = TimeRange("for 2hrs", now=now)
         self.assertEqual(now, trange.start_time_available)
         self.assertEqual(now + timedelta(hours=2), trange.get_end_time_available())
-        trange = TimeRange("for 5min")
+        trange = TimeRange("for 5min", now=now)
         self.assertEqual(now, trange.start_time_available)
         self.assertEqual(now + timedelta(minutes=5), trange.get_end_time_available())
-        trange = TimeRange("for 100 hours")
+        trange = TimeRange("for 100 hours", now=now)
         self.assertEqual(now, trange.start_time_available)
         self.assertEqual(now + timedelta(hours=100), trange.get_end_time_available())
 

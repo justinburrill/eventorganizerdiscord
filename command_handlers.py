@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 from times import TimeRange, fmt_dt, TimeSyntaxError
 import discord
 from discord import Member, Message
-from utils import get_now_rounded, get_now
+from utils import get_now_rounded, get_now, remove_any
 
 PREFIX = "!"
 
@@ -20,6 +20,10 @@ CHANNEL: discord.TextChannel | None = None
 DEBUG_MODE = False
 
 CONFIRMED_START_TIME: datetime | None = None
+
+
+def state() -> str:
+    return f"{available_players=}\n{CONFIRMED_START_TIME=}"
 
 
 async def prune_available_players() -> None:
@@ -54,13 +58,21 @@ async def check_player_count():
         else:
             await CHANNEL.send("Players don't have a common start time...")
     elif DEBUG_MODE:
-        await CHANNEL.send(f"Not enough players. (need {PLAYERS_NEEDED}, have {count})")
+        await CHANNEL.send(f"Not enough players. (need {PLAYERS_NEEDED}, have {count} total)")
 
 
 async def get_current_available() -> list[tuple[Member, TimeRange]]:
     global available_players
     await prune_available_players()
-    return [(m, tr) for (m, tr) in available_players.items() if tr.time_in_range(get_now_rounded())]
+    # return [(m, tr) for (m, tr) in available_players.items() if tr.time_in_range(get_now_rounded())]
+    out = []
+    for (m, tr) in available_players.items():
+        if tr.time_in_range((now := get_now_rounded())):
+            out.append((m, tr))
+            if DEBUG_MODE:
+                await CHANNEL.send(
+                    f"Member {str(m)} available because {str(tr.start_time_available)} < {str(now)} < {str(tr.get_end_time_available())}")
+    return out
 
 
 async def count_current_available() -> int:
@@ -103,7 +115,10 @@ async def handle_available(message: Message, args: str):
     if CHANNEL is None:
         await handle_setup(message, "")
     try:
-        available_players[message.author] = TimeRange(args, now=message.created_at)
+        now = message.created_at.astimezone()
+        args = remove_any(args, ["now"])
+        available_players[message.author] = TimeRange(args, now=now)
+        if DEBUG_MODE: await message.reply(f"got {available_players[message.author]}\n{state()}")
     except ValueError as e:
         if DEBUG_MODE:
             await message.reply(f"These numbers don't look right: {e}")
@@ -112,8 +127,8 @@ async def handle_available(message: Message, args: str):
     except TimeSyntaxError as e:
         await message.reply(e.message)
     else:
-        await message.add_reaction("👍")
         await check_player_count()
+        await message.add_reaction("👍")
 
 
 async def handle_unavailable(message: Message, _args: str):
@@ -171,7 +186,7 @@ async def handle_status(message: Message, _args: str):
     await prune_available_players()
     s = f"({await count_current_available()}/{PLAYERS_NEEDED}) players currently available"
     if CONFIRMED_START_TIME is not None: s += f"\nStart time confirmed for: {fmt_dt(CONFIRMED_START_TIME)}"
-    if DEBUG_MODE: s += f"\nDEBUG MODE ON\nCURRENT TIME {fmt_dt(get_now_rounded())}"
+    if DEBUG_MODE: s += f"\nDEBUG MODE ON\nCURRENT TIME {fmt_dt(get_now_rounded())}\n{state()}"
     global available_players
     for m, tr in available_players.items():
         s += f"\n{m.name}: {str(tr)}"

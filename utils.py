@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, time, date
-from zoneinfo import ZoneInfo
+import zoneinfo
 from typing import Any
 from collections.abc import Collection, Iterable
-
+TZ = zoneinfo.ZoneInfo(key="America/Toronto")
 
 class TimeSyntaxError(RuntimeError):
     def __init__(self, message):
@@ -37,6 +37,15 @@ def strip_seconds(obj: datetime | time | timedelta) -> datetime | time | timedel
             raise TypeError(f"Can't round time off of variable {obj=} which has type {type(obj)}")
 
 
+def add_plurals(strs: list[str]) -> list[str]:
+    return strs + [s+"s" for s in strs]
+
+def remove_any(string: str, strs: list[str]) -> str:
+    for s in strs:
+        if s in string:
+            string = string.replace(s, "")
+    return string
+
 def apply_func_to_timelike_var(arg, f: callable):
     match arg:
         case None:
@@ -51,7 +60,7 @@ def apply_func_to_timelike_var(arg, f: callable):
         #     raise TypeError(f"Can't of apply function to variable {arg=} which has type {type(arg)}")
 
 
-def round_time(f):
+def round_time_wrapper(f):
     def wrapper(*args, **kwargs):
         result = f(*args, **kwargs)
         result = apply_func_to_timelike_var(result, strip_seconds)
@@ -60,10 +69,10 @@ def round_time(f):
     return wrapper
 
 
-def set_tz(f):
+def set_tz_wrapper(f):
     def wrapper(*args, **kwargs):
         result = f(*args, **kwargs)
-        result = apply_func_to_timelike_var(result, lambda t: t.replace(tzinfo=ZoneInfo("America/Toronto")))
+        result = apply_func_to_timelike_var(result, lambda t: t.replace(tzinfo=TZ))
         return result
 
     return wrapper
@@ -80,8 +89,8 @@ def contains_any(first, iterable: Iterable, return_found_item=False) -> bool | A
         return False
 
 
-@set_tz
-@round_time
+@set_tz_wrapper
+@round_time_wrapper
 def time_today(t: time) -> datetime:
     """
     Make a datetime with today's date and the provided time
@@ -95,11 +104,11 @@ def time_tomorrow(t: time) -> datetime:
     return time_today(t) + timedelta(days=1)
 
 
-@set_tz
-@round_time
+@set_tz_wrapper
+@round_time_wrapper
 def get_now_rounded() -> datetime:
     return datetime.now()
 
-@set_tz
+@set_tz_wrapper
 def get_now() -> datetime:
     return datetime.now()

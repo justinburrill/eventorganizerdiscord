@@ -3,8 +3,8 @@ from enum import Enum
 from datetime import timedelta, datetime, date
 from utils import *
 
-hour_suffixes = list(reversed(sorted(["hr", "hrs", "h", "hour", "hours"])))
-minute_suffixes = list(reversed(sorted(["min", "minute", "minutes", "m"])))
+hour_suffixes = list(reversed(sorted(add_plurals(["hr", "h", "hour", "hour"]))))
+minute_suffixes = list(reversed(sorted(add_plurals(["min", "minute", "m"]))))
 time_suffixes = hour_suffixes + minute_suffixes + ["am", "pm"]
 
 
@@ -12,8 +12,8 @@ class TimeIndicatorType(Enum):
     StartTime, EndTime, Duration, Delay = range(4)
 
 
-@set_tz
-@round_time
+@set_tz_wrapper
+@round_time_wrapper
 def parse_time_string(string: str) -> time:
     PM: bool | None = None
     if "am" in string and "pm" in string:
@@ -49,8 +49,8 @@ def parse_time_string(string: str) -> time:
         return time(hour=hour + 12, minute=minute)
 
 
-@set_tz
-@round_time
+@set_tz_wrapper
+@round_time_wrapper
 def parse_simple_timedelta_string(string: str) -> timedelta | None:
     """
     Will probably return None
@@ -72,8 +72,8 @@ def parse_simple_timedelta_string(string: str) -> timedelta | None:
     return timedelta(hours=int(string)) if is_hour else timedelta(minutes=int(string))
 
 
-@set_tz
-@round_time
+@set_tz_wrapper
+@round_time_wrapper
 def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, timedelta):
     """
     examples:
@@ -115,7 +115,7 @@ def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, ti
     last_time: time | None = None
     last_duration: timedelta | None = None
     last_ind_type: TimeIndicatorType | None | int = None
-    words = string.split(" ")
+    words = [s.strip() for s in string.split(" ") if not s.isspace() and not len(s) == 0]
     skip = False
     for (i, word) in enumerate(words):
         if skip:
@@ -182,7 +182,7 @@ def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, ti
                 continue
         except TimeSyntaxError:
             pass  # not a valid duration
-        raise TimeSyntaxError(f"Unrecognized word {word}")
+        raise TimeSyntaxError(f"Unrecognized word '{word}'")
     # time to datetime
     [start_time, end_time] = map(lambda t: time_today(t) if t is not None else None, [start_time, end_time])
 
@@ -332,8 +332,11 @@ class TimeRange:
     def __str__(self) -> str:
         return f"available from {fmt_dt(self.start_time_available)} to {fmt_dt(self.get_end_time_available())}"
 
+    def __repr__(self) -> str:
+        return str(self)
+
     def time_in_range(self, t: datetime):
-        return self.start_time_available <= t <= self.get_end_time_available()
+        return strip_seconds(self.start_time_available) <= t <= self.get_end_time_available()
 
     def get_end_time_available(self) -> datetime:
         return self.start_time_available + self.duration_available
@@ -343,8 +346,8 @@ class TimeRange:
         return int((b.start_time_available - a.start_time_available).total_seconds())
 
     @staticmethod
-    @set_tz
-    @round_time
+    @set_tz_wrapper
+    @round_time_wrapper
     def get_common_start_time(ranges: list["TimeRange"]) -> datetime | None:
         """
         :param ranges: A list of TimeRanges to compare
