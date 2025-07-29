@@ -14,6 +14,16 @@ class CommonTimeTests(TestCase):
         trange3 = TimeRange("in 1 hour for 5 minutes", now=now)
         self.assertEqual(None, TimeRange.get_common_start_time([trange1, trange2, trange3]))
 
+    def test_common_start_time2(self):
+        now = get_now_rounded()
+        trange1 = TimeRange("5-10", now=now)
+        trange2 = TimeRange("4-11", now=now)
+        trange3 = TimeRange("3-12", now=now)
+        trange4 = TimeRange("1-12", now=now)
+        trange5 = TimeRange("2-10", now=now)
+        common = TimeRange.get_common_start_time([trange1, trange2, trange3, trange4, trange5])
+        self.assertEqual(time_today(time(hour=17)), common)
+
 class TimeParsingTests(TestCase):
     def test_add_time_and_delta(self):
         self.assertEqual(time(hour=12, minute=30), add_time_and_delta(time(hour=12), timedelta(minutes=30)))
@@ -22,11 +32,11 @@ class TimeParsingTests(TestCase):
     def test_today(self):
         self.assertEqual(strip_seconds(datetime
                                        .today()
-                                       .replace(tzinfo=zoneinfo.ZoneInfo(key="America/New_York"), hour=10, minute=0)),
+                                       .replace(tzinfo=zoneinfo.ZoneInfo(key="America/Toronto"), hour=10, minute=0)),
                          time_today(time(hour=10)))
         self.assertEqual(strip_seconds(datetime
                                        .today()
-                                       .replace(tzinfo=zoneinfo.ZoneInfo(key="America/New_York"), hour=23, minute=0)),
+                                       .replace(tzinfo=zoneinfo.ZoneInfo(key="America/Toronto"), hour=23, minute=0)),
                          time_today(time(hour=23)))
 
     def test_time(self):

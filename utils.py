@@ -63,7 +63,7 @@ def round_time(f):
 def set_tz(f):
     def wrapper(*args, **kwargs):
         result = f(*args, **kwargs)
-        result = apply_func_to_timelike_var(result, lambda t: t.replace(tzinfo=ZoneInfo("America/New_York")))
+        result = apply_func_to_timelike_var(result, lambda t: t.replace(tzinfo=ZoneInfo("America/Toronto")))
         return result
 
     return wrapper

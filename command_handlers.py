@@ -103,7 +103,7 @@ async def handle_available(message: Message, args: str):
     if CHANNEL is None:
         await handle_setup(message, "")
     try:
-        available_players[message.author] = TimeRange(args)
+        available_players[message.author] = TimeRange(args, now=message.created_at)
     except ValueError as e:
         if DEBUG_MODE:
             await message.reply(f"These numbers don't look right: {e}")
