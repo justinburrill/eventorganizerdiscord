@@ -21,6 +21,8 @@ DEBUG_MODE = False
 
 CONFIRMED_START_TIME: datetime | None = None
 
+waiting = False
+
 
 def state() -> str:
     return f"{available_players=}\n{CONFIRMED_START_TIME=}"
@@ -89,17 +91,23 @@ async def inform_available_players_of_start(t: datetime):
     """
     Contact everyone who says they'll play
     """
-    if CHANNEL is None: return
+    global waiting
     global CONFIRMED_START_TIME
+    global available_players
+    if CHANNEL is None: return
+    if waiting and CONFIRMED_START_TIME == t: return
     CONFIRMED_START_TIME = t
     delay = (t - get_now()).total_seconds()
     if DEBUG_MODE:
         await CHANNEL.send(f"Waiting until {t} ({delay:.2f} seconds, current time is {get_now()})")
+    waiting = True
     if delay > 0: await asyncio.sleep(delay)
+    if CONFIRMED_START_TIME != t:
+        return # someone else took over
     await CHANNEL.send(f"{" ".join(await get_mention_available_players())} time to play!")
-    global available_players
     available_players.clear()
     CONFIRMED_START_TIME = None
+    waiting = False
 
 
 async def inform_available_players_of_agreed_time(t: datetime):

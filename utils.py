@@ -5,9 +5,13 @@ from collections.abc import Collection, Iterable
 TZ = zoneinfo.ZoneInfo(key="America/Toronto")
 
 class TimeSyntaxError(RuntimeError):
+
     def __init__(self, message):
         self.message = message
         super().__init__()
+
+    bad_word_seq_err = lambda last_word, word: f"can't understand '{last_word}' followed by '{word}'"
+    duplicate_info_err = f"got two of the same piece of information"
 
 
 def fmt_dt(dt: datetime) -> str:
