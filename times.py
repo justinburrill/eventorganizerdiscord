@@ -319,7 +319,7 @@ def parse_time_range_results(start_time: datetime | None, end_time: datetime | N
 #
 
 class TimeRange:
-    DEFAULT_DURATION = timedelta(hours=3)
+    DEFAULT_DURATION = timedelta(hours=6)
 
     def __init__(self, string: str, now=get_now_rounded()):
         if len(string.strip()) == 0:
