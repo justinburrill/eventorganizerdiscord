@@ -196,8 +196,11 @@ async def handle_status(message: Message, _args: str):
     if CONFIRMED_START_TIME is not None: s += f"\nStart time confirmed for: {fmt_dt(CONFIRMED_START_TIME)}"
     if DEBUG_MODE: s += f"\nDEBUG MODE ON\nCURRENT TIME {fmt_dt(get_now_rounded())}\n{state()}"
     global available_players
+    available_emoji = "✔️"
+    unavailable_emoji = "❌"
     for m, tr in available_players.items():
-        s += f"\n{m.name}: {str(tr)}"
+        emoji = available_emoji if tr.time_in_range(get_now()) else unavailable_emoji
+        s += f"\n{emoji} {m.name}: {str(tr)}"
     await message.reply(s)
 
 
