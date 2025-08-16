@@ -196,15 +196,20 @@ async def handle_status(message: Message, _args: str):
     if CONFIRMED_START_TIME is not None: s += f"\nStart time confirmed for: {fmt_dt(CONFIRMED_START_TIME)}"
     if DEBUG_MODE: s += f"\nDEBUG MODE ON\nCURRENT TIME {fmt_dt(get_now_rounded())}\n{state()}"
     global available_players
-    available_emoji = "✔️"
+    available_emoji = "✅"
     unavailable_emoji = "❌"
     for m, tr in available_players.items():
         emoji = available_emoji if tr.time_in_range(get_now()) else unavailable_emoji
         s += f"\n{emoji} {m.name}: {str(tr)}"
     await message.reply(s)
 
+async def handle_help(message: Message, _args: str):
+    if CHANNEL is None:
+        await handle_setup(message, "")
+    await message.reply("All commands: " + ", ".join(f"!{k}" for k in func_map.keys()))
 
 func_map: OrderedDict = OrderedDict({
+    "help": handle_help,
     "available": handle_available,
     "unavailable": handle_unavailable,
     "setup": handle_setup,
