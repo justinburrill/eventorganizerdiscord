@@ -63,8 +63,6 @@ async def announce_game_full() -> None:
 
 
 async def handle_extra_players() -> None:
-    if g_debug_mode:
-        await send("Handling extra players")
     selected: list[tuple[User, TimeRange]] = [
         (u, tr) for u, (tr, sel) in g_available_players.items() if sel
     ]
@@ -109,7 +107,6 @@ async def check_player_count() -> None:
     Check if we have enough players, and handle it as needed
     """
     await prune_players()
-    await g_channel.send("debug mode" if g_debug_mode else "not debug mode")
     if g_channel is None:
         return
     if g_debug_mode:
@@ -120,6 +117,8 @@ async def check_player_count() -> None:
             await send("Game full")
         await announce_game_full()
     if count > g_players_needed:
+        if g_debug_mode:
+            await send("Handling extra players")
         await handle_extra_players()
     elif g_debug_mode:
         await send(f"Not enough players. (need {g_players_needed}, have {count} total)")
