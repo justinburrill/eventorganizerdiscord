@@ -109,6 +109,7 @@ async def check_player_count() -> None:
     Check if we have enough players, and handle it as needed
     """
     await prune_players()
+    await g_channel.send("debug mode" if g_debug_mode else "not debug mode")
     if g_channel is None:
         return
     if g_debug_mode:
