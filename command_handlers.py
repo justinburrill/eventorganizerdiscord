@@ -23,14 +23,13 @@ from message_utils import (
     send,
 )
 
+G_PREFIX = "!"
+
 
 class CommandHandler(Protocol):
     def __call__(
         self, message: discord.Message, _args: str
     ) -> CoroutineType[Message, str, None]: ...
-
-
-PREFIX = "!"
 
 
 async def prune_players() -> None:
@@ -209,8 +208,10 @@ async def handle_available(message: Message, _args: str) -> None:
     except TimeSyntaxError as e:
         await message.reply(e.message)
     else:
+        await send("else block")
         await check_player_count()
         await message.add_reaction("👍")
+    await send("some bullshit is going on ")
 
 
 async def handle_unavailable(message: Message, _args: str) -> None:

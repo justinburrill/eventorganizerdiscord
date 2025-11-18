@@ -1,6 +1,6 @@
 #!/bin/env python3
 import discord
-from command_handlers import CommandHandler, func_map, PREFIX
+from command_handlers import CommandHandler, func_map, G_PREFIX
 import json
 from discord_globals import client
 
@@ -11,8 +11,8 @@ file.close()
 
 async def parse_command(message: discord.Message):
     message.content = message.content.lower()
-    command: str = message.content.removeprefix(PREFIX).split(" ")[0]
-    args: str = message.content.removeprefix(PREFIX).removeprefix(command).strip()
+    command: str = message.content.removeprefix(G_PREFIX).split(" ")[0]
+    args: str = message.content.removeprefix(G_PREFIX).removeprefix(command).strip()
     if len(command) == 0 or "!" in command:
         # this is when someone sends a exclamation mark or !!!!
         return
@@ -44,7 +44,7 @@ async def on_ready():
 async def on_message(message: discord.Message):
     if message.author == client.user:  # skip if I sent this message
         return
-    if message.content.startswith(PREFIX):
+    if message.content.startswith(G_PREFIX):
         try:
             await parse_command(message)
         except BaseException as e:
