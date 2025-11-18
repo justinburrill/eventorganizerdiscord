@@ -30,6 +30,8 @@ def parse_time_string(string: str) -> tuple[time, bool] | None:
     """
     :returns: (t: `time`, lock: `bool`) lock represents if we are certain about the am/pm
     """
+    if string.strip() == "now":
+        return (get_now_rounded().time(), True)
     is_PM: bool | None = None
     if "am" in string and "pm" in string:
         raise TimeSyntaxError("Can't be am and pm, that's dumb")

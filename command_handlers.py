@@ -62,6 +62,8 @@ async def announce_game_full() -> None:
 
 
 async def handle_extra_players() -> None:
+    if g_debug_mode:
+        await send("Handling extra players")
     selected: list[tuple[User, TimeRange]] = [
         (u, tr) for u, (tr, sel) in g_available_players.items() if sel
     ]
@@ -96,6 +98,8 @@ async def handle_extra_players() -> None:
 
         tr, _sel = g_available_players[first_unselected]
         g_available_players[first_unselected] = tr, True
+        if g_debug_mode:
+            await send(f"replacing {latest_selected_user.mention} with {first_unselected.mention}")
         await announce_game_full()
 
 
@@ -108,6 +112,8 @@ async def check_player_count() -> None:
         return
 
     if (count := len(g_available_players)) == g_players_needed:
+        if g_debug_mode:
+            await send("Game full")
         await announce_game_full()
     if count > g_players_needed:
         await handle_extra_players()
@@ -187,7 +193,7 @@ async def handle_available(message: Message, _args: str) -> None:
         await handle_setup(message, "")
     try:
         now = message.created_at.astimezone()
-        _args = remove_any(_args, ["now"])
+        _args = remove_any(_args, ["now"]) # TODO: ???
         is_selected = True if len(g_available_players) < g_players_needed else False
         g_available_players[message.author] = (TimeRange(_args, now=now), is_selected)
         if g_debug_mode:
