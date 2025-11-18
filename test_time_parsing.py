@@ -31,14 +31,12 @@ class TimeParsingTests(TestCase):
         self.assertEqual(time(hour=20, minute=45), add_time_and_delta(time(hour=18), timedelta(hours=2, minutes=45)))
 
     def test_today(self):
-        self.assertEqual(strip_seconds(datetime
-                                       .today()
-                                       .replace(tzinfo=TZ, hour=10, minute=0)),
-                         time_today(time(hour=10)))
-        self.assertEqual(strip_seconds(datetime
-                                       .today()
-                                       .replace(tzinfo=TZ, hour=23, minute=0)),
-                         time_today(time(hour=23)))
+        self.assertEqual(
+            strip_seconds(datetime.today().replace(tzinfo=TZ, hour=10, minute=0)), time_today(time(hour=10))
+        )
+        self.assertEqual(
+            strip_seconds(datetime.today().replace(tzinfo=TZ, hour=23, minute=0)), time_today(time(hour=23))
+        )
 
     def test_time(self):
         self.assertEqual((time(hour=10), True), parse_time_string("10am"))
@@ -78,8 +76,7 @@ class TimeRangeParsingTests(TestCase):
         self.assertEqual(time_tomorrow(time(hour=5)), trange.get_end_time_available())
         trange = TimeRange("8 - 1:30am")
         self.assertEqual(time_today(time(hour=20)), trange.start_time_available)
-        self.assertEqual(time_tomorrow(time(hour=1,minute=30)), trange.get_end_time_available())
-
+        self.assertEqual(time_tomorrow(time(hour=1, minute=30)), trange.get_end_time_available())
 
     def test_fail_easy_range(self):
         now = time_today(time(hour=12))
@@ -88,6 +85,9 @@ class TimeRangeParsingTests(TestCase):
     def test_start_time(self):
         now: datetime = time_today(time(hour=12))
         trange = TimeRange("", now=now)
+        self.assertEqual(now, trange.start_time_available)
+        self.assertEqual(TimeRange.DEFAULT_DURATION, trange.duration_available)
+        trange = TimeRange("now", now=now)
         self.assertEqual(now, trange.start_time_available)
         self.assertEqual(TimeRange.DEFAULT_DURATION, trange.duration_available)
         trange = TimeRange("in 5 minutes", now=now)
@@ -175,3 +175,10 @@ class TimeRangeParsingTests(TestCase):
         self.assertRaises(TimeSyntaxError, TimeRange, "hello", now=now)
         self.assertRaises(TimeSyntaxError, TimeRange, "for 5 minutes hello", now=now)
         self.assertRaises(TimeSyntaxError, TimeRange, "for 5pm minutes", now=now)
+
+    def test_smushed_time(self):
+        now: datetime = time_today(time(hour=12))
+        trange = TimeRange("at 830", now=now)
+        self.assertEqual(trange.start_time_available, time_today(time(hour=20, minute=30)))
+        trange = TimeRange("at 745", now=now)
+        self.assertEqual(trange.start_time_available, time_today(time(hour=19, minute=45)))

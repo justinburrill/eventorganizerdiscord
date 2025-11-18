@@ -1,31 +1,33 @@
 #!/bin/env python3
 import discord
-from command_handlers import func_map, PREFIX
+from command_handlers import CommandHandler, func_map, PREFIX
 import json
-from collections.abc import Callable
+from discord_globals import client
 
 file = open("info.json", "r")
 SECRET_TOKEN = json.load(file)["secret"]
 file.close()
 
-intents = discord.Intents.default()
-intents.members = True
-intents.message_content = True
 
-client = discord.Client(intents=intents)
-
-
-async def parse_command(message):
-    command: str = message.content.removeprefix(PREFIX).split(" ")[0].lower()
-    args: str = message.content.removeprefix(PREFIX).removeprefix(command).strip().lower()
-    f: Callable[[str], None] | None = func_map.get(command)
+async def parse_command(message: discord.Message):
+    message.content = message.content.lower()
+    command: str = message.content.removeprefix(PREFIX).split(" ")[0]
+    args: str = message.content.removeprefix(PREFIX).removeprefix(command).strip()
+    if len(command) == 0 or "!" in command:
+        # this is when someone sends a exclamation mark or !!!!
+        return
+    f: CommandHandler | None = func_map.get(command)
     if f is None:
-        is_match: list[bool] = list(map(lambda k: k.startswith(command), keys := list(func_map.keys())))
+        is_match: list[bool] = list(
+            map(lambda k: k.startswith(command), keys := list(func_map.keys()))
+        )
         matched_commands = [keys[i] for i in range(len(is_match)) if is_match[i]]
         if (count := is_match.count(True)) == 1:  # found command!
             f = func_map.get(matched_commands[0])
         elif count > 1:
-            return await message.channel.send(f"Ambiguous command: \"{command}\" ({", ".join(matched_commands)})")
+            return await message.channel.send(
+                f'Ambiguous command: "{command}" ({", ".join(matched_commands)})'
+            )
         else:
             return await message.channel.send(f"huh? what does that mean?")
     if f is None:
@@ -35,7 +37,7 @@ async def parse_command(message):
 
 @client.event
 async def on_ready():
-    print(f'We have logged in as {client.user}')
+    print(f"We have logged in as {client.user}")
 
 
 @client.event
@@ -48,7 +50,6 @@ async def on_message(message: discord.Message):
         except BaseException as e:
             print(f"failed to parse command: {e}")
             await message.reply("failed to parse command. sorry.")
-
 
 
 def main():

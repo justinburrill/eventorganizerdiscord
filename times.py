@@ -1,53 +1,76 @@
 from functools import cmp_to_key
-from enum import Enum
+from typing import override
+from enum import IntEnum
 from datetime import timedelta, datetime, date, time
-from utils import add_plurals, TimeSyntaxError, set_tz_wrapper, round_time_wrapper, contains_any, strip_seconds, \
-    time_today, get_now_rounded, fmt_dt, reverse_lookup
+from utils import (
+    add_plurals,
+    TimeSyntaxError,
+    set_tz_wrapper,
+    round_time_wrapper,
+    find_first_to_contain,
+    strip_seconds,
+    time_today,
+    get_now_rounded,
+    fmt_dt,
+    reverse_lookup,
+)
 
 hour_suffixes = list(reversed(sorted(add_plurals(["hr", "h", "hour", "hour"]))))
 minute_suffixes = list(reversed(sorted(add_plurals(["min", "minute", "m"]))))
 time_suffixes = hour_suffixes + minute_suffixes + ["am", "pm"]
 
 
-class TimeIndicatorType(Enum):
+class TimeIndicatorType(IntEnum):
     StartTime, EndTime, Duration, Delay = range(4)
 
 
 @set_tz_wrapper
 @round_time_wrapper
-def parse_time_string(string: str) -> tuple[time, bool]:
-    PM: bool | None = None
+def parse_time_string(string: str) -> tuple[time, bool] | None:
+    """
+    :returns: (t: `time`, lock: `bool`) lock represents if we are certain about the am/pm
+    """
+    is_PM: bool | None = None
     if "am" in string and "pm" in string:
         raise TimeSyntaxError("Can't be am and pm, that's dumb")
     elif "am" in string:
-        PM = False
+        is_PM = False
     elif "pm" in string:
-        PM = True
+        is_PM = True
 
     string = string.strip().removesuffix("pm").removesuffix("am").strip()
-    if len(string) == 0: raise TimeSyntaxError("not enough information")
-    parts: list[string] = string.split(":")
-    hour: int | None = None
+    if len(string) == 0:
+        raise TimeSyntaxError("not enough information")
+    parts: list[str] = string.split(":")
     minute: int = 0
+    parsed_parts: list[int] = []
     for i in range(len(parts)):
-        parts[i] = parts[i].strip()
-        if not (parts[i]).isnumeric(): raise TimeSyntaxError(f"Can't make a number out of {parts[i]}")
-        parts[i] = int(parts[i])
+        part = parts[i].strip()
+        if not part.isnumeric():
+            raise TimeSyntaxError(f"Can't make a number out of {parts[i]}")
+        parsed_parts.append(int(parts[i]))
     if len(parts) > 2:
         raise TimeSyntaxError("Don't give me seconds")
     elif len(parts) == 2:
-        (hour, minute) = parts
+        (hour, minute) = parsed_parts
     elif len(parts) == 1:
-        hour = parts[0]
-    if not (0 <= hour <= 23): raise TimeSyntaxError(f"Hour {hour} is out of range")
-    if not (0 <= minute <= 59): raise TimeSyntaxError(f"Minute {minute} is out of range")
-    if PM is True and hour > 12: raise TimeSyntaxError(f"Can't have an hour > 12 (provided {hour}) when PM")
-    lock = PM is not None
-    if PM in [None, False]:
-        if PM is None and hour < 12: hour += 12
+        hour = parsed_parts[0]
+    else:
+        raise TimeSyntaxError("Couldn't figure out a time from {string}")
+    if not (0 <= hour <= 23):
+        raise TimeSyntaxError(f"Hour {hour} is out of range")
+    if not (0 <= minute <= 59):
+        raise TimeSyntaxError(f"Minute {minute} is out of range")
+    if is_PM is True and hour > 12:
+        raise TimeSyntaxError(f"Can't have an hour > 12 (provided {hour}) when PM")
+    lock = is_PM is not None
+    if is_PM in [None, False]:
+        if is_PM is None and hour < 12:
+            hour += 12
         return time(hour=hour, minute=minute), lock
-    elif PM is True:
-        if hour == 12: hour = 0  # adjust down
+    elif is_PM is True:
+        if hour == 12:
+            hour = 0  # adjust down
         return time(hour=hour + 12, minute=minute), lock
 
 
@@ -56,17 +79,18 @@ def parse_time_string(string: str) -> tuple[time, bool]:
 def parse_simple_timedelta_string(string: str) -> timedelta | None:
     """
     Will probably return None
+
     :param string: the string to parse...
-    :return: timedelta if we really think this string is a time delta
+    :returns: `timedelta` if we really think this string is a time delta
     """
     is_hour: bool = False
     string = string.strip()
     if string.isnumeric():
         return timedelta(minutes=int(string))
-    if (s := contains_any(string, hour_suffixes, return_found_item=True)) is not False:
+    if (s := find_first_to_contain(string, hour_suffixes)) is not None:
         is_hour = True
         string = string.removesuffix(s).strip()
-    elif (s := contains_any(string, minute_suffixes, return_found_item=True)) is not False:
+    elif (s := find_first_to_contain(string, minute_suffixes)) is not None:
         is_hour = False
         string = string.removesuffix(s).strip()
     if not string.isnumeric():
@@ -76,7 +100,7 @@ def parse_simple_timedelta_string(string: str) -> timedelta | None:
 
 @set_tz_wrapper
 @round_time_wrapper
-def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, timedelta):
+def parse_time_range_string(string: str, now: datetime | None = None) -> tuple[datetime, timedelta, bool]:
     """
     examples:
     5min (available in 5 min for default duration)
@@ -84,7 +108,9 @@ def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, ti
     for 5hrs (available from now for 5hrs)
     until 10 (available from now until 10pm)
     """
-    indicators: dict[TimeIndicatorType, list[string]] = {
+    if now is None:
+        now = get_now_rounded()
+    indicators: dict[TimeIndicatorType, list[str]] = {
         TimeIndicatorType.StartTime: ["from", "at"],
         TimeIndicatorType.EndTime: ["until", "til", "till", "to"],
         TimeIndicatorType.Duration: ["for"],
@@ -96,8 +122,10 @@ def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, ti
         parts = string.split("-")
         if len(parts) != 2:
             raise TimeSyntaxError("why this amount of dashes in your message? do something like 7-10")
-        r1: tuple[time, bool] = parse_time_string(parts[0])
-        r2: tuple[time, bool] = parse_time_string(parts[1])
+        r1: tuple[time, bool] | None = parse_time_string(parts[0])
+        r2: tuple[time, bool] | None = parse_time_string(parts[1])
+        if r1 is None or r2 is None:
+            raise TimeSyntaxError("couldn't parse a time range from this")
         fst_time, lock1 = r1
         snd_time, lock2 = r2
         fst_date: datetime = datetime.combine(date.today(), fst_time)
@@ -118,11 +146,11 @@ def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, ti
     last_word: str | None = None
     last_time: time | None = None
     last_duration: timedelta | None = None
-    last_ind_type: TimeIndicatorType | None | int = None
+    last_ind_type: TimeIndicatorType | None = None
     words = [s.strip() for s in string.split(" ") if not s.isspace() and not len(s) == 0]
     skip = False
     lock_end_time_am_pm = False
-    for (i, word) in enumerate(words):
+    for i, word in enumerate(words):
         if skip:
             skip = False
             continue
@@ -133,7 +161,7 @@ def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, ti
         # is indicator?
         if word in (w for l in indicators.values() for w in l):
             if last_ind_type is not None:  # two indicators in a row
-                raise TimeSyntaxError(TimeSyntaxError.bad_word_seq_err)
+                raise TimeSyntaxError(TimeSyntaxError.bad_word_seq_err(last_word, word))
             ind_type = reverse_lookup(word, indicators)
             # previously the time was given without an indicator, it's probably the start time
             if last_time is not None:
@@ -143,25 +171,27 @@ def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, ti
             continue  # next word
         # is time?
         try:
-            t, lock_time = parse_time_string(word)
-            if t is not None:
-                match last_ind_type:
-                    case TimeIndicatorType.StartTime:
-                        if start_time is not None:
-                            raise TimeSyntaxError(TimeSyntaxError.duplicate_info_err)
-                        start_time = t
-                    case TimeIndicatorType.EndTime:
-                        if end_time is not None:
-                            raise TimeSyntaxError(TimeSyntaxError.duplicate_info_err)
-                        end_time = t
-                        lock_end_time_am_pm = lock_time
-                    case TimeIndicatorType.Delay | TimeIndicatorType.Duration:
-                        raise TimeSyntaxError(TimeSyntaxError.bad_word_seq_err(last_word, word))
-                    case None:
-                        last_time = t
-                last_word = word
-                last_ind_type = None
-                continue  # next word!
+            parse_time_result = parse_time_string(word)
+            if parse_time_result is None:
+                raise TimeSyntaxError("no time")
+            t, lock_time = parse_time_result
+            match last_ind_type:
+                case TimeIndicatorType.StartTime:
+                    if start_time is not None:
+                        raise TimeSyntaxError(TimeSyntaxError.duplicate_info_err)
+                    start_time = t
+                case TimeIndicatorType.EndTime:
+                    if end_time is not None:
+                        raise TimeSyntaxError(TimeSyntaxError.duplicate_info_err)
+                    end_time = t
+                    lock_end_time_am_pm = lock_time
+                case TimeIndicatorType.Delay | TimeIndicatorType.Duration:
+                    raise TimeSyntaxError(TimeSyntaxError.bad_word_seq_err(last_word, word))
+                case _:
+                    last_time = t
+            last_word = word
+            last_ind_type = None
+            continue  # next word!
         except TimeSyntaxError:
             pass  # not a valid time ...
         # is duration?
@@ -179,7 +209,7 @@ def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, ti
                         delay = d
                     case TimeIndicatorType.EndTime | TimeIndicatorType.StartTime:
                         raise TimeSyntaxError(TimeSyntaxError.duplicate_info_err)
-                    case None:
+                    case _:
                         last_duration = d
                 last_word = word
                 last_ind_type = None
@@ -188,140 +218,50 @@ def parse_time_range_string(string: str, now=get_now_rounded()) -> (datetime, ti
             pass  # not a valid duration
         raise TimeSyntaxError(f"Unrecognized word '{word}'")
     # time to datetime
-    [start_time, end_time] = map(lambda t: time_today(t) if t is not None else None, [start_time, end_time])
+    [start_datetime, end_datetime] = map(lambda t: time_today(t) if t is not None else None, [start_time, end_time])
 
     # done figuring out string, get info from results
-    return *parse_time_range_results(start_time, end_time, duration, delay, now=now), lock_end_time_am_pm
+    return *parse_time_range_results(start_datetime, end_datetime, duration, delay, now=now), lock_end_time_am_pm
 
 
-def parse_time_range_results(start_time: datetime | None, end_time: datetime | None, duration: timedelta | None,
-                             delay: timedelta | None, now=get_now_rounded()) -> (datetime, timedelta):
-    match [start_time, end_time, duration, delay]:
-        case [None, None, None, None]:
+def parse_time_range_results(
+    start_time: datetime | None,
+    end_time: datetime | None,
+    duration: timedelta | None,
+    delay: timedelta | None,
+    now=None,
+) -> tuple[datetime, timedelta]:
+    if now is None:
+        now = get_now_rounded()
+    match (start_time, end_time, duration, delay):
+        case (None, None, None, None):
             raise TimeSyntaxError("i got literally nothing from that")
-        case [s, None, None, None]:
+        case (s, None, None, None):
             return s, TimeRange.DEFAULT_DURATION
-        case [None, e, None, None]:
+        case (None, e, None, None):
             return now, e - now
-        case [None, None, None, w]:
+        case (None, None, None, w):
             return now + w, TimeRange.DEFAULT_DURATION
-        case [None, None, d, None]:
+        case (None, None, d, None):
             return now, d
-        case [s, None, d, None]:
+        case (s, None, d, None):
             return s, d
-        case [s, e, None, None]:
+        case (s, e, None, None):
             return s, e - s
-        case [None, None, d, w]:
+        case (None, None, d, w):
             return now + w, d
-        case [None, e, None, w]:
+        case (None, e, None, w):
             return (s := (now + w)), e - s
         case _:
             raise TimeSyntaxError("couldn't make sense of this")
 
 
-# @set_tz
-# @round_time
-# def parse_time_range_string(string: str) -> (datetime, timedelta):
-#     """
-#     examples:
-#     5min (available in 5 min for default duration)
-#     7-9 (available from 7pm to 9pm)
-#     for 5hrs (available from now for 5hrs)
-#     until 10 (available from now until 10pm)
-#     """
-#     indicators: dict[TimeIndicatorType, list[string]] = {
-#         TimeIndicatorType.StartTime: ["from", "at"],
-#         TimeIndicatorType.EndTime: ["until", "til", "till"],
-#         TimeIndicatorType.Duration: ["for"],
-#         TimeIndicatorType.Delay: ["in"],
-#     }
-#     string = string.lower()
-#     # easy range
-#     if "-" in string:
-#         parts = string.split("-")
-#         if len(parts) != 2:
-#             raise TimeSyntaxError("why this amount of dashes in your message? do something like 7-10")
-#         fst_time: time = parse_time_string(parts[0])
-#         snd_time: time = parse_time_string(parts[1])
-#         fst_date = datetime.combine(date.today(), fst_time)
-#         snd_date = datetime.combine(date.today(), snd_time)
-#         if time(hour=6) > fst_time > snd_time:
-#             fst_date += timedelta(days=1)  # if given a 3am, they probably mean the next day
-#         if snd_time < time(hour=6):
-#             snd_date += timedelta(days=1)
-#         dur = snd_date - fst_date
-#         return fst_date, dur
-#     # attempt to dissect string
-#     start_time: datetime | None = None
-#     end_time: datetime | None = None
-#     duration: timedelta | None = None
-#     delay: timedelta | None = None
-#     last_word: str | None = None
-#     last_time: datetime | None = None
-#     last_duration: datetime | None = None
-#     last_ind: TimeIndicatorType | None | int = None
-#     for word in string.split(" "):
-#         word = word.strip()
-#         the_time: time = parse_time_string(word)
-#         time_dur: timedelta = parse_simple_timedelta_string(word)
-#         # if the last word was an indicator then match it to var
-#         for tit in TimeIndicatorType:
-#             if last_ind == tit:
-#                 if the_time is None:
-#                     raise TimeSyntaxError(f"expected a time and got {word}")
-#                 match tit:  # if we see an indicator, assign the last received number to the proper var
-#                     case TimeIndicatorType.StartTime:
-#                         start_time = the_time
-#                     case TimeIndicatorType.EndTime:
-#                         end_time = the_time
-#                     case TimeIndicatorType.Duration:
-#                         duration = time_dur
-#                     case TimeIndicatorType.Delay:
-#                         delay = time_dur
-#                     case _:
-#                         raise TimeSyntaxError("internal: unknown TIT?")
-#                 break  # reach here if we have matched the TIT to the last indicator and saved the time
-#         else:
-#             pass  # reach here if we did not match
-#
-#         if last_time is not None or last_duration is not None:
-#             raise TimeSyntaxError("can't understand two numbers in a row?. try something like 7 - 10")
-#         raise NotImplementedError()
-#         last_time = the_time
-#         last_duration = time_dur
-#         last_word = word
-#
-#         # handle anything that ISN'T a time (IS an indicator)
-#         for (ind_type, words) in indicators.values():
-#             if word in words:
-#                 last_ind = ind_type
-#     # done figuring out string, get info from results
-#     now = datetime.now()
-#     match [start_time, end_time, duration, delay]:
-#         case [None, None, None, None]:
-#             raise TimeSyntaxError("i got literally nothing from that")
-#         case [s, None, None, None]:
-#             return s, TimeRange.DEFAULT_DURATION
-#         case [None, e, None, None]:
-#             return now, e - now
-#         case [None, None, d, None]:
-#             return now, d
-#         case [s, None, d, None]:
-#             return s, d
-#         case [s, e, None, None]:
-#             return s, e - s
-#         case [None, None, None, w]:
-#             return now + w, TimeRange.DEFAULT_DURATION
-#         case [None, None, d, w]:
-#             return now + w, d
-#         case _:
-#             raise TimeSyntaxError("couldn't make sense of this")
-#
-
 class TimeRange:
-    DEFAULT_DURATION = timedelta(hours=6)
+    DEFAULT_DURATION: timedelta = timedelta(hours=6)
 
-    def __init__(self, string: str, now=get_now_rounded()):
+    def __init__(self, string: str, now: datetime | None = None):
+        if now is None:
+            now = get_now_rounded()
         if len(string.strip()) == 0:
             self.start_time_available = now
             self.duration_available = TimeRange.DEFAULT_DURATION
@@ -339,14 +279,18 @@ class TimeRange:
                 td += timedelta(hours=24) if lock else timedelta(hours=12)
         if td.total_seconds() <= 0:
             raise ValueError(f"End time must be after start time:\n{dt=}, {td=}")
-        if not isinstance(dt, datetime): raise TypeError(f"dt wasn't datetime: {type(dt)=} {dt=}")
-        if not isinstance(td, timedelta): raise TypeError(f"td wasn't timedelta: {type(td)=} {td=}")
+        if not isinstance(dt, datetime):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise TypeError(f"dt wasn't datetime: {type(dt)=} {dt=}")
+        if not isinstance(td, timedelta):  # pyright: ignore[reportUnnecessaryIsInstance]
+            raise TypeError(f"td wasn't timedelta: {type(td)=} {td=}")
         self.start_time_available: datetime = dt
         self.duration_available: timedelta = td
 
+    @override
     def __str__(self) -> str:
         return f"available from {fmt_dt(self.start_time_available)} to {fmt_dt(self.get_end_time_available())}"
 
+    @override
     def __repr__(self) -> str:
         return str(self)
 
