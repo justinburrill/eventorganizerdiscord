@@ -34,6 +34,7 @@ PREFIX = "!"
 
 
 async def prune_players() -> None:
+    await send("Pruning players")
     global g_available_players
     to_delete: list[User] = []
     for m, (tr, _sel) in g_available_players.items():
@@ -110,6 +111,8 @@ async def check_player_count() -> None:
     await prune_players()
     if g_channel is None:
         return
+    if g_debug_mode:
+        await send("Checking player count")
 
     if (count := len(g_available_players)) == g_players_needed:
         if g_debug_mode:
@@ -193,8 +196,8 @@ async def handle_available(message: Message, _args: str) -> None:
         await handle_setup(message, "")
     try:
         now = message.created_at.astimezone()
-        _args = remove_any(_args, ["now"]) # TODO: ???
-        is_selected = True if len(g_available_players) < g_players_needed else False
+        _args = remove_any(_args, ["now"])  # TODO: ???
+        is_selected = len(g_available_players) < g_players_needed
         g_available_players[message.author] = (TimeRange(_args, now=now), is_selected)
         if g_debug_mode:
             await message.reply(f"got {g_available_players[message.author]}\n{state()}")
