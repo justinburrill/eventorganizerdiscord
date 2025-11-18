@@ -25,4 +25,3 @@ async def send(message: str) -> Message | None:
     if g_channel is not None:
         return await g_channel.send(message)
 
-async def count_reactions(message: Message)
