@@ -42,6 +42,7 @@ async def prune_players() -> None:
     to_delete: list[User] = []
     for m, (tr, _sel) in g_available_players.items():
         if tr.get_end_time_available() < get_now_rounded():
+            logging.info(f"pruning {m.name}")
             if g_debug_mode:
                 await send(
                     f"pruning player {m.name} (end time {fmt_dt(tr.get_end_time_available())})"
@@ -218,7 +219,6 @@ async def handle_available(message: Message, _args: str) -> None:
     except TimeSyntaxError as e:
         await message.reply(e.message)
     else:
-        await send("else block")
         await check_player_count()
         await message.add_reaction("👍")
 
