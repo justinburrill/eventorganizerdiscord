@@ -151,7 +151,7 @@ async def count_current_available() -> int:
     return len(await get_current_available())
 
 
-async def get_mention_available_players(*, only_selected=True, only_unselected=True) -> list[str]:
+async def get_mention_available_players(*, only_selected=False, only_unselected=False) -> list[str]:
     logger.info("function get_mention_available_players")
     global g_available_players
     await prune_players()
@@ -182,7 +182,7 @@ async def inform_available_players_of_start(t: datetime):
         await asyncio.sleep(delay)
     if g_confirmed_start_time != t:
         return  # someone else took over
-    await send(f"{" ".join(await get_mention_available_players())} time to play!")
+    await send(f"{" ".join(await get_mention_available_players(only_selected=True))} time to play!")
     g_confirmed_start_time = None
     g_waiting = False
 
