@@ -195,7 +195,6 @@ async def handle_available(message: Message, _args: str) -> None:
         await handle_setup(message, "")
     try:
         now = message.created_at.astimezone()
-        _args = remove_any(_args, ["now"])  # TODO: ???
         is_selected = len(g_available_players) < g_players_needed
         g_available_players[message.author] = (TimeRange(_args, now=now), is_selected)
         if g_debug_mode:
@@ -211,7 +210,6 @@ async def handle_available(message: Message, _args: str) -> None:
         await send("else block")
         await check_player_count()
         await message.add_reaction("👍")
-    await send("some bullshit is going on ")
 
 
 async def handle_unavailable(message: Message, _args: str) -> None:
@@ -257,6 +255,7 @@ async def handle_setup(message: Message, _args: str) -> None:
         await g_channel.send(
             f'the channel "{g_channel.name}" ({g_channel.id}) is now where I will be sending messages'
         )
+        await send("TEST MESSAGE")
 
 
 async def enable_debug(message: Message, _args: str) -> None:
