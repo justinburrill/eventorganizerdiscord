@@ -103,8 +103,7 @@ async def handle_extra_players() -> None:
 
         tr, _sel = g_available_players[first_unselected]
         g_available_players[first_unselected] = tr, True
-        if g_debug_mode:
-            await send(f"replacing {latest_selected_user.mention} with {first_unselected.mention}")
+        await send(f"replacing {latest_selected_user.mention} with {first_unselected.mention}")
         await announce_game_full()
 
 
@@ -256,7 +255,8 @@ async def handle_unavailable(message: Message, _args: str) -> None:
                 g_available_players.update({m: (tr, True)})
                 i += 1
 
-            await send("...")
+            await send(f"replaced {author.mention}")
+            await check_player_count()
 
 
 async def handle_setup(message: Message, _args: str) -> None:
@@ -267,7 +267,6 @@ async def handle_setup(message: Message, _args: str) -> None:
         await send(
             f'the channel "{message.channel}" ({message.channel.id}) is now where I will be sending messages'
         )
-        await send("TEST MESSAGE")
 
 
 async def enable_debug(message: Message, _args: str) -> None:
@@ -276,7 +275,7 @@ async def enable_debug(message: Message, _args: str) -> None:
         await handle_setup(message, "")
     global g_debug_mode
     g_debug_mode = True
-    await message.channel.send("debug mode on")
+    await send("debug mode on")
 
 
 async def disable_debug(message: Message, _args: str) -> None:
@@ -285,7 +284,7 @@ async def disable_debug(message: Message, _args: str) -> None:
         await handle_setup(message, "")
     global g_debug_mode
     g_debug_mode = False
-    await message.channel.send("debug mode off")
+    await send("debug mode off")
 
 
 async def handle_count(message: Message, _args: str) -> None:
