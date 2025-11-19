@@ -29,4 +29,5 @@ async def send(message: str) -> Message | None:
     if g_channel is not None:
         return await g_channel.send(message)
     else:
+        logging.warning(f"not sending message because {g_channel=}")
         return None
