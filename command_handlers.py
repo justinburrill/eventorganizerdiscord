@@ -266,6 +266,7 @@ async def handle_setup(message: Message, _args: str) -> None:
     global g_channel
     if isinstance(message.channel, discord.TextChannel):
         g_channel = message.channel
+        logging.info(f"g_channel becomes {message.channel=}")
         await g_channel.send(
             f'the channel "{g_channel.name}" ({g_channel.id}) is now where I will be sending messages'
         )
