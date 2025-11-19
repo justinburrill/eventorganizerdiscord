@@ -14,10 +14,19 @@ logger = logging.getLogger(__name__)
 g_available_players: OrderedDict[User, tuple[TimeRange, bool]] = OrderedDict()
 
 g_players_needed: int = 5
-g_channel: TextChannel | None = None
+_g_channel: TextChannel | None = None
 g_debug_mode: bool = False
 g_confirmed_start_time: datetime | None = None
 g_waiting: bool = False
+
+
+def get_channel() -> TextChannel | None:
+    return _g_channel
+
+
+def set_channel(c: TextChannel) -> None:
+    global _g_channel
+    _g_channel = c
 
 
 def state() -> str:
@@ -26,8 +35,9 @@ def state() -> str:
 
 async def send(message: str) -> Message | None:
     logging.info(f"sending message: {message}")
-    if g_channel is not None:
-        return await g_channel.send(message)
+    channel = get_channel()
+    if channel is not None:
+        return await channel.send(message)
     else:
-        logging.warning(f"not sending message because {g_channel=}")
+        logging.warning(f"not sending message because {channel=}")
         return None

@@ -11,16 +11,17 @@ from times import TimeRange
 import discord
 from discord import Member, Message
 from discord.abc import User
-from utils import get_now_rounded, get_now, remove_any, fmt_dt, TimeSyntaxError
+from utils import get_now_rounded, get_now, fmt_dt, TimeSyntaxError
 from typing import Protocol, Callable
 
 from message_utils import (
     g_available_players,
-    g_channel,
     g_confirmed_start_time,
     g_debug_mode,
     g_players_needed,
     g_waiting,
+    get_channel,
+    set_channel,
     state,
     send,
 )
@@ -52,7 +53,7 @@ async def prune_players() -> None:
 
 async def announce_game_full() -> None:
     logger.info("function announce_game_full")
-    if g_channel is not None:
+    if get_channel() is not None:
         if g_debug_mode:
             await send("We have enough players, checking for common start time...")
         t = TimeRange.get_common_start_time([tr for (tr, _sel) in g_available_players.values()])
@@ -112,7 +113,7 @@ async def check_player_count() -> None:
     Check if we have enough players, and handle it as needed
     """
     await prune_players()
-    if g_channel is None:
+    if get_channel() is None:
         return
     if g_debug_mode:
         await send("Checking player count")
@@ -166,10 +167,8 @@ async def inform_available_players_of_start(t: datetime):
     """
     Contact everyone who says they'll play
     """
-    global g_waiting
-    global g_confirmed_start_time
-    global g_available_players
-    if g_channel is None:
+    global g_waiting, g_confirmed_start_time
+    if get_channel() is None:
         return
     if g_waiting and g_confirmed_start_time == t:
         return
@@ -193,7 +192,7 @@ async def inform_available_players_of_agreed_time(t: datetime):
     """
     Contact everyone who says they'll play
     """
-    if g_channel is None:
+    if get_channel() is None:
         return
     await send(
         f"{" ".join(await get_mention_available_players())} start time has been set to {fmt_dt(t)}"
@@ -203,7 +202,7 @@ async def inform_available_players_of_agreed_time(t: datetime):
 async def handle_available(message: Message, _args: str) -> None:
     logger.info("function handle_available")
     global g_available_players
-    if g_channel is None:
+    if get_channel() is None:
         await handle_setup(message, "")
     try:
         now = message.created_at.astimezone()
@@ -226,8 +225,8 @@ async def handle_available(message: Message, _args: str) -> None:
 
 async def handle_unavailable(message: Message, _args: str) -> None:
     logger.info("function handle_unavailable")
-    global g_available_players, g_confirmed_start_time, g_channel
-    if g_channel is None:
+    global g_available_players, g_confirmed_start_time
+    if get_channel() is None:
         await handle_setup(message, "")
     await prune_players()
     author: User = message.author
@@ -263,19 +262,18 @@ async def handle_unavailable(message: Message, _args: str) -> None:
 
 async def handle_setup(message: Message, _args: str) -> None:
     logger.info("function handle_setup")
-    global g_channel
     if isinstance(message.channel, discord.TextChannel):
-        g_channel = message.channel
-        logging.info(f"g_channel becomes {message.channel=}")
-        await g_channel.send(
-            f'the channel "{g_channel.name}" ({g_channel.id}) is now where I will be sending messages'
+        set_channel(message.channel)
+        logging.info(f"get_channel() becomes {message.channel=}")
+        await send(
+            f'the channel "{message.channel}" ({message.channel.id}) is now where I will be sending messages'
         )
         await send("TEST MESSAGE")
 
 
 async def enable_debug(message: Message, _args: str) -> None:
     logger.info("function enable_debug")
-    if g_channel is None:
+    if get_channel() is None:
         await handle_setup(message, "")
     global g_debug_mode
     g_debug_mode = True
@@ -284,7 +282,7 @@ async def enable_debug(message: Message, _args: str) -> None:
 
 async def disable_debug(message: Message, _args: str) -> None:
     logger.info("function disable_debug")
-    if g_channel is None:
+    if get_channel() is None:
         await handle_setup(message, "")
     global g_debug_mode
     g_debug_mode = False
@@ -293,7 +291,7 @@ async def disable_debug(message: Message, _args: str) -> None:
 
 async def handle_count(message: Message, _args: str) -> None:
     logger.info("function handle_count")
-    if g_channel is None:
+    if get_channel() is None:
         await handle_setup(message, "")
     global g_players_needed
     if len(_args.strip()) == 0:
@@ -309,7 +307,7 @@ async def handle_count(message: Message, _args: str) -> None:
 
 async def handle_status(message: Message, _args: str) -> None:
     logger.info("function handle_status")
-    if g_channel is None:
+    if get_channel() is None:
         await handle_setup(message, "")
     await prune_players()
     s = f"({await count_current_available()}/{g_players_needed}) players currently available"
@@ -339,7 +337,7 @@ async def handle_status(message: Message, _args: str) -> None:
 
 async def handle_help(message: Message, _args: str) -> None:
     logger.info("function handle_help")
-    if g_channel is None:
+    if get_channel() is None:
         await handle_setup(message, "")
     await message.reply("All commands: " + ", ".join(f"!{k}" for k in func_map.keys()))
 
