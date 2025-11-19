@@ -80,7 +80,7 @@ async def handle_extra_players() -> None:
     latest_selected_user = latest_selected
     other_selected = [p[0].mention for p in selected if p[0] != latest_selected]
     msg = await send(
-        f"{other_selected} vote to replace {latest_selected_user.mention} with {first_unselected.mention}"
+        f"{' '.join(other_selected)} vote to replace {latest_selected_user.mention} with {first_unselected.mention}"
     )
     if msg is None:
         print("Failed to add reacts to message")
