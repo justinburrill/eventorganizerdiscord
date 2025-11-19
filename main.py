@@ -8,6 +8,8 @@ file = open("info.json", "r")
 SECRET_TOKEN = json.load(file)["secret"]
 file.close()
 
+import logging
+logger = logging.getLogger(__name__)
 
 async def parse_command(message: discord.Message):
     message.content = message.content.lower()
@@ -53,7 +55,10 @@ async def on_message(message: discord.Message):
 
 
 def main():
+    logging.basicConfig(level=logging.INFO)
+    logger.info("starting...")
     client.run(SECRET_TOKEN)
+    logger.info("exiting???")
 
 
 if __name__ == "__main__":
