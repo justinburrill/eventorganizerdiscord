@@ -56,7 +56,7 @@ async def on_message(message: discord.Message):
 
 def main():
     logging.basicConfig(level=logging.INFO)
-    logger.info("starting...")
+    logger.info("====================  starting  ==================== ")
     client.run(SECRET_TOKEN)
     logger.info("exiting???")
 
