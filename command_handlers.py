@@ -219,8 +219,8 @@ async def handle_available(message: Message, _args: str) -> None:
     except TimeSyntaxError as e:
         await message.reply(e.message)
     else:
-        await check_player_count()
         await message.add_reaction("👍")
+        await check_player_count()
 
 
 async def handle_unavailable(message: Message, _args: str) -> None:
