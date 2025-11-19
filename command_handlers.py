@@ -57,7 +57,7 @@ async def announce_game_full() -> None:
     if get_channel() is not None:
         if g_debug_mode:
             await send("We have enough players, checking for common start time...")
-        t = TimeRange.get_common_start_time([tr for (tr, _sel) in g_available_players.values()])
+        t = TimeRange.get_common_start_time([tr for (tr, sel) in g_available_players.values() if sel])
         if t is not None:
             await inform_available_players_of_agreed_time(t)
             await inform_available_players_of_start(t)
@@ -183,7 +183,6 @@ async def inform_available_players_of_start(t: datetime):
     if g_confirmed_start_time != t:
         return  # someone else took over
     await send(f"{" ".join(await get_mention_available_players())} time to play!")
-    g_available_players.clear()
     g_confirmed_start_time = None
     g_waiting = False
 
@@ -196,7 +195,7 @@ async def inform_available_players_of_agreed_time(t: datetime):
     if get_channel() is None:
         return
     await send(
-        f"{" ".join(await get_mention_available_players())} start time has been set to {fmt_dt(t)}"
+        f"{" ".join(await get_mention_available_players(only_selected=True))} start time has been set to {fmt_dt(t)}"
     )
 
 
