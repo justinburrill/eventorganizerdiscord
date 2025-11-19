@@ -5,6 +5,9 @@ from discord import TextChannel, Message
 from discord.abc import User
 
 from times import TimeRange
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 # name : (times, selected)
@@ -22,6 +25,7 @@ def state() -> str:
 
 
 async def send(message: str) -> Message | None:
+    logging.info(f"sending message: {message}")
     if g_channel is not None:
         return await g_channel.send(message)
     else:
