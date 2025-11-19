@@ -119,16 +119,16 @@ async def check_player_count() -> None:
     if g_debug_mode:
         await send("Checking player count")
 
-    if (count := len(g_available_players)) == g_players_needed:
+    if len(g_available_players) == g_players_needed:
         if g_debug_mode:
             await send("Game full")
         await announce_game_full()
-    if count > g_players_needed:
+    elif len(g_available_players) > g_players_needed:
         if g_debug_mode:
             await send("Handling extra players")
         await handle_extra_players()
     elif g_debug_mode:
-        await send(f"Not enough players. (need {g_players_needed}, have {count} total)")
+        await send(f"Not enough players. (need {g_players_needed}, have {len(g_available_players)} total)")
 
 
 async def get_current_available() -> list[tuple[Member, TimeRange]]:
