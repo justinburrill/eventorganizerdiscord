@@ -167,7 +167,7 @@ async def inform_available_players_of_start(t: datetime):
     """
     Contact everyone who says they'll play
     """
-    global g_waiting, g_confirmed_start_time
+    global g_waiting, g_confirmed_start_time, g_available_players, g_debug_mode
     if get_channel() is None:
         return
     if g_waiting and g_confirmed_start_time == t:
@@ -184,6 +184,7 @@ async def inform_available_players_of_start(t: datetime):
     await send(f"{" ".join(await get_mention_available_players(only_selected=True))} time to play!")
     g_confirmed_start_time = None
     g_waiting = False
+    g_available_players.clear()
 
 
 async def inform_available_players_of_agreed_time(t: datetime):
