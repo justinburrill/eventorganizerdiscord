@@ -34,10 +34,10 @@ def state() -> str:
 
 
 async def send(message: str) -> Message | None:
-    logging.info(f"sending message: {message}")
+    logger.info(f"sending message: {message}")
     channel = get_channel()
     if channel is not None:
         return await channel.send(message)
     else:
-        logging.warning(f"not sending message because {channel=}")
+        logger.warning(f"not sending message because {channel=}")
         return None
