@@ -109,6 +109,8 @@ def parse_time_range_string(string: str, now: datetime | None = None) -> tuple[d
     7-9 (available from 7pm to 9pm)
     for 5hrs (available from now for 5hrs)
     until 10 (available from now until 10pm)
+
+    :returns: start-time, duration, am/pm-lock
     """
     if now is None:
         now = get_now_rounded()
@@ -118,8 +120,10 @@ def parse_time_range_string(string: str, now: datetime | None = None) -> tuple[d
         TimeIndicatorType.Duration: ["for"],
         TimeIndicatorType.Delay: ["in"],
     }
-    string = string.lower()
+    string = string.lower().replace(" now ", " ").replace(" an ", " 1 ").replace(" a ", " 1 ").strip()
     # easy range
+    if len(string) == 0:
+        return now, TimeRange.DEFAULT_DURATION, False
     if "-" in string:
         parts = string.split("-")
         if len(parts) != 2:
@@ -276,7 +280,7 @@ class TimeRange:
         #     snd_date += timedelta(days=1)
         # if snd_date < fst_date and snd_time.hour <= 12:
         #     snd_date += timedelta(hours=12)
-        for i in range(2):
+        for _ in range(2):
             if (end := dt + td) < dt and end.time().hour < 13:
                 td += timedelta(hours=24) if lock else timedelta(hours=12)
         if td.total_seconds() <= 0:

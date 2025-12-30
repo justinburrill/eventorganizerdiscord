@@ -34,7 +34,8 @@ class CommandHandler(Protocol):
     def __call__(self, message: discord.Message, _args: str) -> CoroutineType[Message, str, None]: ...
 
 
-async def reselect_players() -> None:
+async def reselect_first_players() -> None:
+    logger.info("function reselect_players")
     # set first X players to selected
     i = 0
     for m, (tr, _sel) in g_available_players.items():
@@ -57,7 +58,7 @@ async def prune_players() -> None:
     for m in to_delete:
         del g_available_players[m]
     if len(g_available_players) < g_players_needed:
-        await reselect_players()
+        await reselect_first_players()
 
 
 async def announce_game_full() -> None:
@@ -79,6 +80,10 @@ async def handle_extra_players() -> None:
     logger.info("function handle_extra_players")
     selected: list[tuple[User, TimeRange]] = [(u, tr) for u, (tr, sel) in g_available_players.items() if sel]
     unselected: list[tuple[User, TimeRange]] = [(u, tr) for u, (tr, sel) in g_available_players.items() if not sel]
+    if len(selected) < g_players_needed:
+        await reselect_first_players()
+        await handle_extra_players() # retry function
+        return
     latest_selected: User = max(selected, key=lambda u: u[1].start_time_available)[0]
     first_unselected: User = min(unselected, key=lambda u: u[1].start_time_available)[0]
     latest_selected_user = latest_selected
@@ -257,7 +262,7 @@ async def handle_unavailable(message: Message, _args: str) -> None:
         elif len(g_available_players) >= g_players_needed:
 
             await send(f"replaced {author.mention}")
-            await reselect_players()
+            await reselect_first_players()
             await check_player_count()
 
 

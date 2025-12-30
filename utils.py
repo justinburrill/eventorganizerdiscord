@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, time, date
 import zoneinfo
-from typing import Any, TypeVar, Callable
+from typing import Any, TypeVar, Callable, override
 from collections.abc import Iterable
 
 TZ = zoneinfo.ZoneInfo(key="America/Toronto")
@@ -16,6 +16,14 @@ class TimeSyntaxError(RuntimeError):
         lambda last_word, word: f"can't understand '{last_word}' followed by '{word}'"
     )
     duplicate_info_err: str = f"got two of the same piece of information"
+
+    @override
+    def __repr__(self):
+        return f"<TimeSyntaxError: {self.message}>"
+
+    @override
+    def __str__(self):
+        return f"{self.message}"
 
 
 def fmt_dt(dt: datetime) -> str:
