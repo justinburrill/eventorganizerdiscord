@@ -14,15 +14,17 @@ from discord.abc import User
 from utils import get_now_rounded, get_now, fmt_dt, TimeSyntaxError
 from typing import Protocol, Callable
 
-from message_utils import (
-    g_available_players,
+from players import g_available_players
+
+from globals import (
     g_confirmed_start_time,
     g_debug_mode,
     g_players_needed,
     g_waiting,
+)
+from message_utils import (
     get_channel,
     set_channel,
-    state,
     send,
     debug_log,
 )
@@ -35,29 +37,11 @@ class CommandHandler(Protocol):
     def __call__(self, message: discord.Message, _args: str) -> CoroutineType[Message, str, None]: ...
 
 
-async def reselect_first_players() -> None:
-    logger.debug("function reselect_players")
-    # set first X players to selected
-    i = 0
-    for m, (tr, _sel) in g_available_players.items():
-        if i >= g_players_needed:
-            break
-        g_available_players.update({m: (tr, True)})
-        i += 1
-
 
 async def prune_players() -> None:
     logger.debug("function prune_players")
     global g_available_players
-    to_delete: list[User] = []
-    for m, (tr, _sel) in g_available_players.items():
-        if tr.get_end_time_available() < get_now_rounded():
-            await debug_log(f"pruning player {m.name} (end time {fmt_dt(tr.get_end_time_available())})")
-            to_delete.append(m)
-    for m in to_delete:
-        del g_available_players[m]
-    if len(g_available_players) < g_players_needed:
-        await reselect_first_players()
+    await g_available_players.prune()
 
 
 async def announce_game_full() -> None:
@@ -79,15 +63,14 @@ async def handle_extra_players() -> None:
     selected: list[tuple[User, TimeRange]] = [(u, tr) for u, (tr, sel) in g_available_players.items() if sel]
     unselected: list[tuple[User, TimeRange]] = [(u, tr) for u, (tr, sel) in g_available_players.items() if not sel]
     if len(selected) < g_players_needed:
-        await reselect_first_players()
+        g_available_players.reselect_first_available_players()
         await handle_extra_players() # retry function
         return
-    latest_selected: User = max(selected, key=lambda u: u[1].start_time_available)[0]
-    first_unselected: User = min(unselected, key=lambda u: u[1].start_time_available)[0]
-    latest_selected_user = latest_selected
-    other_selected = [p[0].mention for p in selected if p[0] != latest_selected]
+    latest_selected_user: User = max(selected, key=lambda u: u[1].start_time_available)[0]
+    first_unselected_user: User = min(unselected, key=lambda u: u[1].start_time_available)[0]
+    other_selected = [p[0].mention for p in selected if p[0] != latest_selected_user]
     msg = await send(
-        f"{' '.join(other_selected)} vote to replace {latest_selected_user.mention} with {first_unselected.mention}"
+        f"{' '.join(other_selected)} vote to replace {latest_selected_user.mention} with {first_unselected_user.mention}"
     )
     if msg is None:
         logger.error("Failed to add send vote message somehow")
@@ -111,13 +94,10 @@ async def handle_extra_players() -> None:
         logger.info("timed out vote to replace")
         pass
     else:  # if we don't time out, then:
-        await debug_log("replacing player")
-        tr, _sel = g_available_players[latest_selected_user]
-        g_available_players[latest_selected_user] = tr, False
-
-        tr, _sel = g_available_players[first_unselected]
-        g_available_players[first_unselected] = tr, True
-        await send(f"replacing {latest_selected_user.mention} with {first_unselected.mention}")
+        logging.info(f"replacing player {latest_selected_user} with {first_unselected_user}")
+        await send(f"replacing {latest_selected_user.mention} with {first_unselected_user.mention}")
+        g_available_players.deselect_player(latest_selected_user)
+        g_available_players.deselect_player(first_unselected_user)
         await announce_game_full()
 
 
@@ -191,7 +171,7 @@ async def inform_available_players_of_start(t: datetime):
     await send(f"{" ".join(await get_mention_available_players(only_selected=True))} time to play!")
     g_confirmed_start_time = None
     g_waiting = False
-    g_available_players.clear()
+    g_available_players.start_game()
 
 
 async def inform_available_players_of_agreed_time(t: datetime):
@@ -213,10 +193,9 @@ async def handle_available(message: Message, _args: str) -> None:
         await handle_setup(message, "")
     try:
         now = message.created_at.astimezone()
-        is_selected = len(g_available_players) < g_players_needed
-        g_available_players[message.author] = (TimeRange(_args, now=now), is_selected)
-        if g_debug_mode:
-            await message.reply(f"got {g_available_players[message.author]}\n{state()}")
+        player = message.author
+        g_available_players.add_player(player, TimeRange(_args, now=now))
+        await debug_log(f"Adding player: {player}")
     except ValueError as e:
         if g_debug_mode:
             await message.reply(f"These numbers don't look right: {e}")
@@ -235,25 +214,25 @@ async def handle_unavailable(message: Message, _args: str) -> None:
     if get_channel() is None:
         await handle_setup(message, "")
     await prune_players()
-    author: User = message.author
-    if author not in g_available_players.keys():
+    player: User = message.author
+    if player not in g_available_players.keys():
         await message.reply(f"We weren't expecting you!")
         return
-    user_was_selected: bool = g_available_players[author][1]
-    del g_available_players[author]  # delete em!
+    user_was_selected: bool = g_available_players.user_is_selected(player)
+    g_available_players.delete(player) # delete em!
     await message.add_reaction("🖕" if user_was_selected else "👋")
 
     if user_was_selected:
         if len(g_available_players) == g_players_needed - 1:
             g_confirmed_start_time = None
             other_selected_players: list[str] = [
-                player for player in await get_mention_available_players(only_selected=True) if player != author
+                player for player in await get_mention_available_players(only_selected=True) if player != player
             ]
-            await send(f"{' '.join(other_selected_players)} game has been cancelled due to {author.mention}, boo him")
+            await send(f"{' '.join(other_selected_players)} game has been cancelled due to {player.mention}, boo him")
         elif len(g_available_players) >= g_players_needed:
 
-            await send(f"replaced {author.mention}")
-            await reselect_first_players()
+            await send(f"replaced {player.mention}")
+            g_available_players.reselect_first_available_players()
             await check_player_count()
 
 
@@ -300,6 +279,7 @@ async def handle_count(message: Message, _args: str) -> None:
 
 
 async def handle_status(message: Message, _args: str) -> None:
+    global g_available_players
     logger.debug("function handle_status")
     if get_channel() is None:
         await handle_setup(message, "")
@@ -308,12 +288,14 @@ async def handle_status(message: Message, _args: str) -> None:
     if g_confirmed_start_time is not None:
         s += f"\nStart time confirmed for: {fmt_dt(g_confirmed_start_time)}"
     if g_debug_mode:
-        s += f"\nDEBUG MODE ON\nCURRENT TIME {fmt_dt(get_now_rounded())}\n{state()}"
-    global g_available_players
+        s += f"\nDEBUG MODE ON\nCURRENT TIME {fmt_dt(get_now_rounded())}\n{f"{g_available_players=}\n{g_confirmed_start_time=}"}"
     available_emoji = "✅"
     unavailable_emoji = "❌"
-    sel_players: list[tuple[User, TimeRange]] = [(m, tr) for m, (tr, sel) in g_available_players.items() if sel]
-    unsel_players: list[tuple[User, TimeRange]] = [(m, tr) for m, (tr, sel) in g_available_players.items() if not sel]
+    # sel_players: list[tuple[User, TimeRange]] = [(m, tr) for m, (tr, sel) in g_available_players.items() if sel]
+    # unsel_players: list[tuple[User, TimeRange]] = [(m, tr) for m, (tr, sel) in g_available_players.items() if not sel]
+    sel_players = g_available_players.selected_players.items()
+    unsel_players = g_available_players.unselected_players.items()
+    playing_players = g_available_players.playing_players.items()
     for m, tr in sel_players:
         emoji = available_emoji if tr.time_in_range(get_now()) else unavailable_emoji
         s += f"\n{emoji} {m.name}: {str(tr)}"
@@ -322,6 +304,11 @@ async def handle_status(message: Message, _args: str) -> None:
         for m, tr in unsel_players:
             emoji = available_emoji if tr.time_in_range(get_now()) else unavailable_emoji
             s += f"\n{emoji} {m.name}: {str(tr)}"
+    if len(playing_players) > 0:
+        s += "\nCurrently playing:"
+        for m, (tr, _) in playing_players:
+            s += f"\n{m.name}: {str(tr)}"
+
     await message.reply(s)
 
 

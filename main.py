@@ -39,7 +39,7 @@ async def parse_command(message: discord.Message):
 
 @client.event
 async def on_ready():
-    print(f"We have logged in as {client.user}")
+    logging.info(f"We have logged in as {client.user}")
 
 
 @client.event
@@ -50,8 +50,8 @@ async def on_message(message: discord.Message):
         try:
             await parse_command(message)
         except BaseException as e:
-            print(f"failed to parse command: {e}")
-            await message.reply("failed to parse command. sorry.")
+            logger.exception(f"failed to parse command", e)
+            await message.reply("failed to parse command due to internal error. sorry.")
 
 
 def main():
