@@ -58,7 +58,7 @@ def main():
     logging.basicConfig(level=logging.INFO)
     logger.info("====================  starting  ==================== ")
     client.run(SECRET_TOKEN)
-    logger.info("exiting???")
+    logger.warning("exiting")
 
 
 if __name__ == "__main__":

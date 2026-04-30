@@ -20,6 +20,11 @@ g_confirmed_start_time: datetime | None = None
 g_waiting: bool = False
 
 
+async def debug_log(msg) -> None:
+    logger.debug(msg)
+    if g_debug_mode:
+        await send(msg)
+
 def get_channel() -> TextChannel | None:
     return _g_channel
 
