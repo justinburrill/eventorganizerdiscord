@@ -43,7 +43,10 @@ class AvailablePlayers:
         """
         Selected and unselected players
         """
-        return len(self.unselected_players) + len(self.selected_players)
+        return len(self.not_playing())
+
+    def not_playing(self) -> list[User]:
+        return [*self.unselected_players.keys(), *self.selected_players.keys()]
 
     def add_player(self, player: User, timerange: TimeRange):
         if self.has_enough_players():

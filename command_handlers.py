@@ -191,9 +191,13 @@ async def handle_available(message: Message, _args: str) -> None:
     global g_available_players
     if get_channel() is None:
         await handle_setup(message, "")
+    now = message.created_at.astimezone()
+    player = message.author
+    if player in g_available_players.playing_players:
+        await send(f"{" ".join(p.mention for p in g_available_players.playing_players if p != player)} game postponed due to {player.mention}.")
+        return
+
     try:
-        now = message.created_at.astimezone()
-        player = message.author
         g_available_players.add_player(player, TimeRange(_args, now=now))
         await debug_log(f"Adding player: {player}")
     except ValueError as e:
@@ -215,12 +219,23 @@ async def handle_unavailable(message: Message, _args: str) -> None:
         await handle_setup(message, "")
     await prune_players()
     player: User = message.author
-    if player not in g_available_players.keys():
+    emoji = "👋"
+    if player in g_available_players.playing_players:
+        emoji = "🖕"
+        if len(g_available_players) > 0:
+            await send(f"{" ".join(p.mention for p in g_available_players.playing_players if p != player)} Game delayed due to {player.mention}.\n{" ".join(p.mention for p in g_available_players.not_playing())} need a replacement!")
+        else:
+            await send(f"{" ".join(p.mention for p in g_available_players.playing_players if p != player)} Game cancelled due to {player.mention}.")
+
+    elif player not in g_available_players.keys():
         await message.reply(f"We weren't expecting you!")
         return
     user_was_selected: bool = g_available_players.user_is_selected(player)
     g_available_players.delete(player) # delete em!
-    await message.add_reaction("🖕" if user_was_selected else "👋")
+    if user_was_selected:
+        emoji = "🖕"
+
+    await message.add_reaction(emoji)
 
     if user_was_selected:
         if len(g_available_players) == g_players_needed - 1:
@@ -228,7 +243,7 @@ async def handle_unavailable(message: Message, _args: str) -> None:
             other_selected_players: list[str] = [
                 player for player in await get_mention_available_players(only_selected=True) if player != player
             ]
-            await send(f"{' '.join(other_selected_players)} game has been cancelled due to {player.mention}, boo him")
+            await send(f"{' '.join(other_selected_players)} game has been cancelled due to {player.mention}.")
         elif len(g_available_players) >= g_players_needed:
 
             await send(f"replaced {player.mention}")
