@@ -256,7 +256,7 @@ async def handle_setup(message: Message, _args: str) -> None:
     if isinstance(message.channel, discord.TextChannel):
         set_channel(message.channel)
         logger.info(f"get_channel() becomes {message.channel=}: {get_channel()=}")
-        # await send(f'the channel "{message.channel}" ({message.channel.id}) is now where I will be sending messages')
+        await send(f'the channel "{message.channel}" ({message.channel.id}) is now where I will be sending messages')
 
 
 async def enable_debug(message: Message, _args: str) -> None:
