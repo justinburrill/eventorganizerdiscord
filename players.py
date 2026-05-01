@@ -81,7 +81,8 @@ class AvailablePlayers:
 
     def reselect_first_available_players(self):
         self.deselect_all_players()
-        for ( i, m ) in enumerate(self.unselected_players):
+        unselected = list(enumerate(self.unselected_players))
+        for ( i, m ) in unselected:
             if i >= g_players_needed:
                 break
             self.select_player(m)
