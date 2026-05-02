@@ -9,7 +9,7 @@ from discord_globals import client
 
 from times import TimeRange
 import discord
-from discord import Member, Message
+from discord import Member, Message, Reaction
 from discord.abc import User
 from utils import get_now_rounded, get_now, fmt_dt, TimeSyntaxError
 from typing import Protocol, Callable
@@ -80,8 +80,8 @@ async def handle_extra_players() -> None:
     await msg.add_reaction(no)
     count_reactions: Callable[[Message, str], int] = lambda m, react: len([r for r in m.reactions if r.emoji == react])
 
-    def vote_passes(msg: Message):
-        result = (c := count_reactions(msg, yes)) > (n := math.ceil((g_players_needed - 1) / 2))
+    def vote_passes(reaction: Reaction, _user: User):
+        result = (c := count_reactions(reaction.message, yes)) > (n := math.ceil((g_players_needed - 1) / 2))
         if result:
             logger.info(f"Got {c} reactions, vote passes")
         else:
@@ -94,7 +94,7 @@ async def handle_extra_players() -> None:
         logger.info("timed out vote to replace")
         pass
     else:  # if we don't time out, then:
-        logging.info(f"replacing player {latest_selected_user} with {first_unselected_user}")
+        logger.info(f"replacing player {latest_selected_user} with {first_unselected_user}")
         await send(f"replacing {latest_selected_user.mention} with {first_unselected_user.mention}")
         g_available_players.deselect_player(latest_selected_user)
         g_available_players.deselect_player(first_unselected_user)
@@ -116,7 +116,10 @@ async def check_player_count() -> None:
         await announce_game_full()
     elif len(g_available_players) > g_players_needed:
         await debug_log("Handling extra players")
-        await handle_extra_players()
+        try:
+            await handle_extra_players()
+        except:
+            logger.error("Failed to create vote")
     else:
         await debug_log(f"Not enough players. (need {g_players_needed}, have {len(g_available_players)} total)")
 
@@ -220,6 +223,7 @@ async def handle_unavailable(message: Message, _args: str) -> None:
     await prune_players()
     player: User = message.author
     emoji = "👋"
+    # send message if it ruined a game
     if player in g_available_players.playing_players:
         emoji = "🖕"
         if len(g_available_players) > 0:
@@ -232,10 +236,8 @@ async def handle_unavailable(message: Message, _args: str) -> None:
         return
     user_was_selected: bool = g_available_players.user_is_selected(player)
     g_available_players.delete(player) # delete em!
-    if user_was_selected:
-        emoji = "🖕"
 
-    await message.add_reaction(emoji)
+    await message.add_reaction("🖕" if user_was_selected else emoji)
 
     if user_was_selected:
         if len(g_available_players) == g_players_needed - 1:

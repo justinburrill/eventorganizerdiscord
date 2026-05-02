@@ -39,7 +39,7 @@ async def parse_command(message: discord.Message):
 
 @client.event
 async def on_ready():
-    logging.info(f"We have logged in as {client.user}")
+    logging.error(f"We have logged in as {client.user}")
 
 
 @client.event
@@ -55,7 +55,7 @@ async def on_message(message: discord.Message):
 
 
 def main():
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
     logger.info("====================  starting  ==================== ")
     client.run(SECRET_TOKEN)
     logger.warning("exiting")
