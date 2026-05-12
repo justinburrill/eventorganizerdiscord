@@ -88,11 +88,24 @@ class AvailablePlayers:
             self.select_player(m)
 
     def delete(self, player: User):
+        """
+        Remove from all dictionaries
+        """
         self.playing_players.pop(player, None)
         self.unselected_players.pop(player, None)
         self.selected_players.pop(player, None)
 
     async def prune(self):
+        game_length = timedelta(minutes=25)
+        players_in_game = self.playing_players.items()
+        for (m, (tr, start_time)) in players_in_game:
+            end_time = start_time + game_length
+            if datetime.now() > end_time: # if we have passed the game end time...
+                # remove them from playing and put them back in selected
+                del self.playing_players[m]
+                self.selected_players[m] = tr
+
+
         to_delete: list[User] = []
         for m, (tr, _sel) in self.items():
             if tr.get_end_time_available() < get_now_rounded():
@@ -103,13 +116,6 @@ class AvailablePlayers:
         if len(self) < g_players_needed:
             self.reselect_first_available_players()
 
-        game_length = timedelta(minutes=25)
-        for (m, (tr, start_time)) in self.playing_players.items():
-            end_time = start_time + game_length
-            if datetime.now() > end_time:
-                del self.playing_players[m]
-                self.selected_players[m] = tr
-                self.delete(m)
 
 
 
