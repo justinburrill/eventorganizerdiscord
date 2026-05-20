@@ -1,4 +1,5 @@
 from collections import OrderedDict
+from copy import copy
 from discord.abc import User
 
 from datetime import datetime, timedelta
@@ -97,7 +98,7 @@ class AvailablePlayers:
 
     async def prune(self):
         game_length = timedelta(minutes=25)
-        players_in_game = self.playing_players.items()
+        players_in_game = copy(self.playing_players.items())
         for (m, (tr, start_time)) in players_in_game:
             end_time = start_time + game_length
             if datetime.now() > end_time: # if we have passed the game end time...
